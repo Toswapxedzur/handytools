@@ -130,6 +130,19 @@ tasks.register('validateHammerAssets') {
                 throw new GradleException("${id} GUI model points to the wrong texture")
             }
 
+            def head = worldModel.elements?.find { it.name == 'hammer_head' }
+            def lowerHandle = worldModel.elements?.find { it.name == 'handle_lower' }
+            if (head?.from != [4, 8, 4] || head?.to != [12, 16, 12]) {
+                throw new GradleException(
+                        "${id} head geometry no longer matches the press contact calculation"
+                )
+            }
+            if (lowerHandle?.from != [7, -4, 7] || lowerHandle?.to != [9, 2, 9]) {
+                throw new GradleException(
+                        "${id} handle no longer supports the six-pixel press pivot"
+                )
+            }
+
             ['thirdperson_righthand', 'thirdperson_lefthand'].each { context ->
                 if (worldModel.display?.get(context)?.scale != [1.0, 1.0, 1.0]) {
                     throw new GradleException(

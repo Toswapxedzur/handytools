@@ -8,7 +8,6 @@ import com.mojang.math.Axis;
 import java.util.List;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
@@ -62,6 +61,9 @@ public final class HammerClientExtensions {
                             arm == HumanoidArm.RIGHT ? 1.0F : -1.0F;
                     float progress =
                             HammerItem.getPressProgress(player, partialTick);
+                    float swingDegrees =
+                            HammerItem.getPressStopAngleDegrees(player)
+                                    * progress;
 
                     poseStack.translate(
                             direction * 0.56F,
@@ -69,20 +71,17 @@ public final class HammerClientExtensions {
                             -0.72F
                     );
                     poseStack.translate(
-                            -direction * 0.16F * progress,
-                            -0.72F * progress,
-                            0.18F * progress
+                            0.0F,
+                            -HammerRenderContext.PRESS_PIVOT_OFFSET,
+                            0.0F
                     );
                     poseStack.mulPose(
-                            Axis.XP.rotationDegrees(
-                                    Mth.lerp(progress, 0.0F, 32.0F)
-                            )
+                            Axis.XP.rotationDegrees(swingDegrees)
                     );
-                    poseStack.mulPose(
-                            Axis.ZP.rotationDegrees(
-                                    direction
-                                            * Mth.lerp(progress, 0.0F, -12.0F)
-                            )
+                    poseStack.translate(
+                            0.0F,
+                            HammerRenderContext.PRESS_PIVOT_OFFSET,
+                            0.0F
                     );
                     poseStack.mulPose(
                             Axis.YP.rotationDegrees(direction * 45.0F)
