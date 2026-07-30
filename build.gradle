@@ -1,0 +1,145 @@
+import groovy.json.JsonSlurper
+
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'idea'
+    id 'net.neoforged.moddev' version '2.0.140'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+neoForge {
+    version = project.neo_version
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+            programArguments.addAll(
+                    '--mod', project.mod_id,
+                    '--all',
+                    '--output', file('src/generated/resources/').absolutePath,
+                    '--existing', file('src/main/resources/').absolutePath
+            )
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.INFO
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+sourceSets.main.resources {
+    srcDir 'src/generated/resources'
+}
+
+def generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    def replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from 'src/main/templates'
+    into layout.buildDirectory.dir('generated/sources/modMetadata')
+}
+
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+def hammerIds = [
+        'wooden_hammer',
+        'cobblestone_hammer',
+        'iron_hammer',
+        'gold_hammer',
+        'diamond_hammer',
+        'netherite_hammer'
+]
+
+tasks.register('validateHammerAssets') {
+    group = 'verification'
+    description = 'Validates the paired GUI and 3D hammer models and textures.'
+    notCompatibleWithConfigurationCache('Reads and parses the project asset tree directly.')
+    inputs.dir 'src/main/resources/assets/handytools'
+
+    doLast {
+        def assets = file('src/main/resources/assets/handytools')
+        def parser = new JsonSlurper()
+
+        hammerIds.each { id ->
+            def worldModelFile = new File(assets, "models/item/${id}.json")
+            def guiModelFile = new File(assets, "models/item/${id}_inventory.json")
+            def worldTextureFile = new File(assets, "textures/item/hammers/${id}.png")
+            def guiTextureFile = new File(assets, "textures/item/hammer_items/${id}.png")
+
+            [worldModelFile, guiModelFile, worldTextureFile, guiTextureFile].each { required ->
+                if (!required.isFile()) {
+                    throw new GradleException("Missing hammer asset: ${required}")
+                }
+            }
+
+            def worldModel = parser.parse(worldModelFile)
+            def guiModel = parser.parse(guiModelFile)
+            def worldTextures = worldModel.textures?.values() ?: []
+
+            if (worldTextures.any { !it.startsWith('handytools:item/hammers/') }) {
+                throw new GradleException("${id} 3D model has an invalid texture namespace")
+            }
+            if (guiModel.parent != 'minecraft:item/handheld_mace') {
+                throw new GradleException("${id} GUI model must inherit handheld_mace")
+            }
+            if (guiModel.textures?.layer0 != "handytools:item/hammer_items/${id}") {
+                throw new GradleException("${id} GUI model points to the wrong texture")
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('validateHammerAssets')
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+}
