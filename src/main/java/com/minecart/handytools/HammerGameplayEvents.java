@@ -34,7 +34,12 @@ public final class HammerGameplayEvents {
             return;
         }
 
-        if (event.getItemStack().getItem() instanceof HammerItem) {
+        if (event.getItemStack().getItem() instanceof HammerItem
+                && HammerItem.canStartPress(
+                        event.getLevel(),
+                        event.getEntity(),
+                        event.getPos()
+                )) {
             event.setUseBlock(TriState.FALSE);
             event.setUseItem(TriState.TRUE);
         }
@@ -131,8 +136,8 @@ public final class HammerGameplayEvents {
         player.xRotO = state.xRot();
         player.setYHeadRot(state.yRot());
         player.yHeadRotO = state.yRot();
-        player.yBodyRot = state.yRot();
-        player.yBodyRotO = state.yRot();
+        player.yBodyRot = state.bodyYRot();
+        player.yBodyRotO = state.bodyYRot();
         player.fallDistance = state.fallDistance();
     }
 
@@ -141,6 +146,7 @@ public final class HammerGameplayEvents {
             Vec3 position,
             float yRot,
             float xRot,
+            float bodyYRot,
             int selectedSlot,
             float fallDistance
     ) {
@@ -150,6 +156,7 @@ public final class HammerGameplayEvents {
                     player.position(),
                     player.getYRot(),
                     player.getXRot(),
+                    HammerItem.getTargetFacingYaw(player),
                     player.getInventory().selected,
                     player.fallDistance
             );

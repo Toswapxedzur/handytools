@@ -14,9 +14,13 @@ dropped-item, item-frame, head, and fixed contexts. Third person uses the full
 3D hammer model at one model pixel per world pixel.
 
 Hold right click while targeting a block to begin a focused press. The hammer
-falls into its pressed position, the third-person player grips it with both
-hands, and movement, camera turning, screen opening, hotbar changes, and other
-interactions remain locked until right click is released.
+can lock only when the block center is within 1.5 blocks and 60 degrees of the
+player's view, and the block bounding-box top is 0.5 to 1.5 blocks above the
+player's feet. Its target-facing swing accelerates cubically around a pivot six
+model pixels beyond the wooden handle, stops at the block top, and brings both
+third-person hands toward the handle. Movement, camera turning, screen opening,
+hotbar changes, and other interactions remain locked until right click is
+released.
 
 Create 6 and JEI 19 are declared as optional dependencies. Handy Tools builds
 and runs without either mod installed.
