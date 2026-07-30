@@ -25,6 +25,7 @@ neoForge {
     runs {
         client {
             client()
+            jvmArgument '-Xdock:name=Handy Tools Dev Client'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
@@ -95,7 +96,7 @@ def hammerIds = [
 
 tasks.register('validateHammerAssets') {
     group = 'verification'
-    description = 'Validates the paired GUI and 3D hammer models and textures.'
+    description = 'Validates the paired flat and full-scale third-person hammer assets.'
     notCompatibleWithConfigurationCache('Reads and parses the project asset tree directly.')
     inputs.dir 'src/main/resources/assets/handytools'
 
@@ -127,6 +128,14 @@ tasks.register('validateHammerAssets') {
             }
             if (guiModel.textures?.layer0 != "handytools:item/hammer_items/${id}") {
                 throw new GradleException("${id} GUI model points to the wrong texture")
+            }
+
+            ['thirdperson_righthand', 'thirdperson_lefthand'].each { context ->
+                if (worldModel.display?.get(context)?.scale != [1.0, 1.0, 1.0]) {
+                    throw new GradleException(
+                            "${id} ${context} must use one model unit per world pixel"
+                    )
+                }
             }
         }
     }

@@ -46,7 +46,7 @@ public final class ModItems {
             if (fireResistant) {
                 properties.fireResistant();
             }
-            return new Item(properties);
+            return new HammerItem(properties);
         });
     }
 }

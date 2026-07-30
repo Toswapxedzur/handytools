@@ -8,6 +8,7 @@ version = "${mod_version}"
 displayName = "${mod_name}"
 authors = "${mod_authors}"
 description = '''${mod_description}'''
+enumExtensions = "META-INF/enumextensions.json"
 
 [[dependencies."${mod_id}"]]
 modId = "neoforge"
@@ -27,5 +28,12 @@ side = "BOTH"
 modId = "create"
 type = "optional"
 versionRange = "[6.0.0,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies."${mod_id}"]]
+modId = "jei"
+type = "optional"
+versionRange = "[19,)"
 ordering = "AFTER"
 side = "BOTH"

@@ -6,11 +6,11 @@ import net.minecraft.world.item.ItemDisplayContext;
 import net.neoforged.neoforge.client.model.BakedModelWrapper;
 
 final class ContextSwitchingBakedModel extends BakedModelWrapper<BakedModel> {
-    private final BakedModel guiModel;
+    private final BakedModel flatModel;
 
-    ContextSwitchingBakedModel(BakedModel worldModel, BakedModel guiModel) {
-        super(worldModel);
-        this.guiModel = guiModel;
+    ContextSwitchingBakedModel(BakedModel thirdPersonModel, BakedModel flatModel) {
+        super(thirdPersonModel);
+        this.flatModel = flatModel;
     }
 
     @Override
@@ -19,8 +19,11 @@ final class ContextSwitchingBakedModel extends BakedModelWrapper<BakedModel> {
             PoseStack poseStack,
             boolean leftHand
     ) {
-        BakedModel selected =
-                displayContext == ItemDisplayContext.GUI ? guiModel : originalModel;
+        boolean isThirdPerson =
+                displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND
+                        || displayContext
+                        == ItemDisplayContext.THIRD_PERSON_LEFT_HAND;
+        BakedModel selected = isThirdPerson ? originalModel : flatModel;
         return selected.applyTransform(displayContext, poseStack, leftHand);
     }
 }

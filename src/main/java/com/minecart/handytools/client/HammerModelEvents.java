@@ -29,7 +29,7 @@ public final class HammerModelEvents {
 
     @SubscribeEvent
     public static void registerAdditionalModels(ModelEvent.RegisterAdditional event) {
-        HAMMER_IDS.forEach(id -> event.register(guiModel(id)));
+        HAMMER_IDS.forEach(id -> event.register(flatModel(id)));
     }
 
     @SubscribeEvent
@@ -39,11 +39,11 @@ public final class HammerModelEvents {
         for (String id : HAMMER_IDS) {
             ModelResourceLocation itemLocation =
                     ModelResourceLocation.inventory(HandyTools.id(id));
-            ModelResourceLocation guiLocation = guiModel(id);
-            BakedModel worldModel = models.get(itemLocation);
-            BakedModel guiModel = models.get(guiLocation);
+            ModelResourceLocation flatLocation = flatModel(id);
+            BakedModel thirdPersonModel = models.get(itemLocation);
+            BakedModel flatModel = models.get(flatLocation);
 
-            if (worldModel == null || guiModel == null) {
+            if (thirdPersonModel == null || flatModel == null) {
                 throw new IllegalStateException(
                         "Missing Handy Tools model pair for " + id
                 );
@@ -51,12 +51,15 @@ public final class HammerModelEvents {
 
             models.put(
                     itemLocation,
-                    new ContextSwitchingBakedModel(worldModel, guiModel)
+                    new ContextSwitchingBakedModel(
+                            thirdPersonModel,
+                            flatModel
+                    )
             );
         }
     }
 
-    private static ModelResourceLocation guiModel(String id) {
+    private static ModelResourceLocation flatModel(String id) {
         return ModelResourceLocation.standalone(
                 HandyTools.id("item/" + id + "_inventory")
         );
