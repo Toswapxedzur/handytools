@@ -9,12 +9,17 @@ Handy Tools is a NeoForge 1.21.1 mod that adds six material hammers:
 - Diamond Hammer
 - Netherite Hammer
 
-Each hammer uses a compact mace-style sprite in inventory GUIs. In first
-person, third person, dropped-item, item-frame, and other non-GUI contexts, it
-uses the full 3D hammer model.
+Each hammer uses a compact mace-style sprite in inventory, first person,
+dropped-item, item-frame, head, and fixed contexts. Third person uses the full
+3D hammer model at one model pixel per world pixel.
 
-Create 6 is declared as an optional dependency. Handy Tools builds and runs
-without Create installed.
+Hold right click while targeting a block to begin a focused press. The hammer
+falls into its pressed position, the third-person player grips it with both
+hands, and movement, camera turning, screen opening, hotbar changes, and other
+interactions remain locked until right click is released.
+
+Create 6 and JEI 19 are declared as optional dependencies. Handy Tools builds
+and runs without either mod installed.
 
 ## Build
 
