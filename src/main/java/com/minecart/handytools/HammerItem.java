@@ -30,8 +30,14 @@ public final class HammerItem extends Item {
     public static final double MAX_TARGET_DISTANCE = 1.5D;
     public static final double MIN_TARGET_TOP_ABOVE_FEET = 0.5D;
     public static final double MAX_TARGET_TOP_ABOVE_FEET = 1.5D;
+    public static final float PRESS_START_PITCH_DEGREES = -60.0F;
 
     private static final int MAX_USE_DURATION = 72_000;
+    private static final double PRESS_PIVOT_HEIGHT = 1.5D;
+    private static final double HAMMER_HEAD_CENTER_DISTANCE = 22.0D / 16.0D;
+    private static final double HAMMER_HEAD_HALF_SIZE = 4.0D / 16.0D;
+    private static final double CONTACT_ANGLE_STEP = 0.25D;
+    private static final double MAX_CONTACT_ANGLE = 179.75D;
     private static final double MAX_TARGET_DISTANCE_SQUARED =
             MAX_TARGET_DISTANCE * MAX_TARGET_DISTANCE;
     private static final double MIN_VIEW_DOT = 0.5D;
@@ -223,6 +229,12 @@ public final class HammerItem extends Item {
                 .orElse(0.0F);
     }
 
+    public static float getPressContactPitchDegrees(LivingEntity entity) {
+        return getPressTarget(entity)
+                .map(PressTarget::contactPitchDegrees)
+                .orElse(PRESS_START_PITCH_DEGREES);
+    }
+
     private static Optional<PressTarget> findLockableTarget(
             Level level,
             Player player,
@@ -267,9 +279,133 @@ public final class HammerItem extends Item {
                 bounds.maxY,
                 Mth.clamp(player.getZ(), bounds.minZ, bounds.maxZ)
         );
-        return Optional.of(
-                new PressTarget(blockPos.immutable(), blockCenter, contactPoint)
+        float contactPitch = findContactPitchDegrees(
+                player,
+                blockCenter,
+                contactPoint,
+                bounds
         );
+        return Optional.of(
+                new PressTarget(
+                        blockPos.immutable(),
+                        blockCenter,
+                        contactPoint,
+                        contactPitch
+                )
+        );
+    }
+
+    private static float findContactPitchDegrees(
+            Player player,
+            Vec3 blockCenter,
+            Vec3 contactPoint,
+            AABB bounds
+    ) {
+        double forwardX = blockCenter.x - player.getX();
+        double forwardZ = blockCenter.z - player.getZ();
+        double horizontalLength = Math.sqrt(
+                forwardX * forwardX + forwardZ * forwardZ
+        );
+        if (horizontalLength < 1.0E-8D) {
+            return PRESS_START_PITCH_DEGREES;
+        }
+        forwardX /= horizontalLength;
+        forwardZ /= horizontalLength;
+
+        double nearX = (forwardX >= 0.0D ? bounds.minX : bounds.maxX)
+                - player.getX();
+        double farX = (forwardX >= 0.0D ? bounds.maxX : bounds.minX)
+                - player.getX();
+        double nearZ = (forwardZ >= 0.0D ? bounds.minZ : bounds.maxZ)
+                - player.getZ();
+        double farZ = (forwardZ >= 0.0D ? bounds.maxZ : bounds.minZ)
+                - player.getZ();
+        double blockNear = nearX * forwardX + nearZ * forwardZ;
+        double blockFar = farX * forwardX + farZ * forwardZ;
+        double pivotY = player.getY() + PRESS_PIVOT_HEIGHT;
+        double blockBottom = bounds.minY - pivotY;
+        double blockTop = bounds.maxY - pivotY;
+
+        double startAngle = -PRESS_START_PITCH_DEGREES;
+        if (headIntersectsTarget(
+                startAngle,
+                blockNear,
+                blockFar,
+                blockBottom,
+                blockTop
+        )) {
+            return PRESS_START_PITCH_DEGREES;
+        }
+
+        double previousAngle = startAngle;
+        for (double angle = startAngle + CONTACT_ANGLE_STEP;
+                angle <= MAX_CONTACT_ANGLE;
+                angle += CONTACT_ANGLE_STEP) {
+            if (headIntersectsTarget(
+                    angle,
+                    blockNear,
+                    blockFar,
+                    blockBottom,
+                    blockTop
+            )) {
+                double lower = previousAngle;
+                double upper = angle;
+                for (int refinement = 0; refinement < 12; refinement++) {
+                    double middle = (lower + upper) * 0.5D;
+                    if (headIntersectsTarget(
+                            middle,
+                            blockNear,
+                            blockFar,
+                            blockBottom,
+                            blockTop
+                    )) {
+                        upper = middle;
+                    } else {
+                        lower = middle;
+                    }
+                }
+                return (float) -upper;
+            }
+            previousAngle = angle;
+        }
+
+        Vec3 pivotToContact = contactPoint.subtract(
+                player.getX(),
+                pivotY,
+                player.getZ()
+        );
+        double horizontal = Math.sqrt(
+                pivotToContact.x * pivotToContact.x
+                        + pivotToContact.z * pivotToContact.z
+        );
+        double contactAngle = Math.toDegrees(
+                Math.atan2(horizontal, pivotToContact.y)
+        );
+        return (float) -Mth.clamp(
+                contactAngle,
+                startAngle,
+                MAX_CONTACT_ANGLE
+        );
+    }
+
+    private static boolean headIntersectsTarget(
+            double angleDegrees,
+            double blockNear,
+            double blockFar,
+            double blockBottom,
+            double blockTop
+    ) {
+        double angle = Math.toRadians(angleDegrees);
+        double sine = Math.sin(angle);
+        double cosine = Math.cos(angle);
+        double projectedHalfSize = HAMMER_HEAD_HALF_SIZE
+                * (Math.abs(sine) + Math.abs(cosine));
+        double headForward = HAMMER_HEAD_CENTER_DISTANCE * sine;
+        double headY = HAMMER_HEAD_CENTER_DISTANCE * cosine;
+        return headForward + projectedHalfSize >= blockNear
+                && headForward - projectedHalfSize <= blockFar
+                && headY + projectedHalfSize >= blockBottom
+                && headY - projectedHalfSize <= blockTop;
     }
 
     private static void startPress(
@@ -284,7 +420,8 @@ public final class HammerItem extends Item {
     public record PressTarget(
             BlockPos blockPos,
             Vec3 blockCenter,
-            Vec3 contactPoint
+            Vec3 contactPoint,
+            float contactPitchDegrees
     ) {
     }
 }
