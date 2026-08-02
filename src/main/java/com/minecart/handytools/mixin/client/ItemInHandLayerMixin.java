@@ -26,6 +26,20 @@ abstract class ItemInHandLayerMixin {
                     + "Lnet/minecraft/client/renderer/MultiBufferSource;"
                     + "I)V";
 
+    @Inject(method = "renderArmWithItem", at = @At("HEAD"))
+    private void handytools$capturePlayerBodyTransform(
+            LivingEntity entity,
+            ItemStack stack,
+            ItemDisplayContext displayContext,
+            HumanoidArm arm,
+            PoseStack poseStack,
+            MultiBufferSource bufferSource,
+            int packedLight,
+            CallbackInfo callbackInfo
+    ) {
+        HammerRenderContext.captureThirdPersonBodyTransform(poseStack);
+    }
+
     @Inject(
             method = "renderArmWithItem",
             at = @At(

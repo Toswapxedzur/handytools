@@ -57,31 +57,19 @@ public final class HammerClientExtensions {
                         return false;
                     }
 
+                    HammerRenderContext.captureFirstPersonBodyTransform(
+                            poseStack,
+                            player,
+                            arm
+                    );
+
                     float direction =
                             arm == HumanoidArm.RIGHT ? 1.0F : -1.0F;
-                    float progress =
-                            HammerItem.getPressProgress(player, partialTick);
-                    float swingDegrees =
-                            HammerItem.getPressStopAngleDegrees(player)
-                                    * progress;
 
                     poseStack.translate(
                             direction * 0.56F,
                             -0.52F - equipProgress * 0.6F,
                             -0.72F
-                    );
-                    poseStack.translate(
-                            0.0F,
-                            -HammerRenderContext.PRESS_PIVOT_OFFSET,
-                            0.0F
-                    );
-                    poseStack.mulPose(
-                            Axis.XP.rotationDegrees(swingDegrees)
-                    );
-                    poseStack.translate(
-                            0.0F,
-                            HammerRenderContext.PRESS_PIVOT_OFFSET,
-                            0.0F
                     );
                     poseStack.mulPose(
                             Axis.YP.rotationDegrees(direction * 45.0F)
