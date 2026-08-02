@@ -129,8 +129,20 @@ public final class HammerItem extends Item {
             return 0.0F;
         }
 
-        float linear = Math.min(
-                (entity.getTicksUsingItem() + partialTick) / PRESS_FALL_TICKS,
+        int currentTick = entity.getTicksUsingItem();
+        float currentProgress = getCubicTickProgress(currentTick);
+        float nextProgress = getCubicTickProgress(currentTick + 1);
+        return Mth.lerp(
+                Mth.clamp(partialTick, 0.0F, 1.0F),
+                currentProgress,
+                nextProgress
+        );
+    }
+
+    private static float getCubicTickProgress(int tick) {
+        float linear = Mth.clamp(
+                (float) tick / PRESS_FALL_TICKS,
+                0.0F,
                 1.0F
         );
         return linear * linear * linear;
