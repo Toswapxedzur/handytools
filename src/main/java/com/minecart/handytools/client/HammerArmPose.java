@@ -1,6 +1,7 @@
 package com.minecart.handytools.client;
 
 import com.minecart.handytools.HammerItem;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.util.Mth;
@@ -25,7 +26,10 @@ public final class HammerArmPose {
             LivingEntity entity,
             HumanoidArm ignoredArm
     ) {
-        float progress = HammerItem.getPressProgress(entity, 0.0F);
+        float partialTick = Minecraft.getInstance()
+                .getTimer()
+                .getGameTimeDeltaPartialTick(true);
+        float progress = HammerItem.getPressProgress(entity, partialTick);
         float targetPitch = getTargetPitch(entity);
         float armPitch = Mth.lerp(progress, -2.6F, targetPitch);
         float inwardTilt = Mth.lerp(progress, 0.2F, 0.46F);
