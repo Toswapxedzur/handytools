@@ -29,9 +29,7 @@ final class ContextSwitchingBakedModel extends BakedModelWrapper<BakedModel> {
                 poseStack,
                 leftHand
         );
-        if (isThirdPerson) {
-            HammerRenderContext.applyThirdPersonTransform(poseStack);
-        }
+        HammerRenderContext.applyModelTransform(poseStack, displayContext);
         return transformed;
     }
 }
