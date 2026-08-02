@@ -4,6 +4,7 @@ import com.minecart.handytools.HammerItem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemDisplayContext;
@@ -11,6 +12,7 @@ import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import org.joml.Vector4f;
 
 public final class HammerRenderContext {
     // Model Y -10 is six pixels beyond the handle end at Y -4. Baked item
@@ -49,7 +51,7 @@ public final class HammerRenderContext {
                 ? ItemDisplayContext.FIRST_PERSON_RIGHT_HAND
                 : ItemDisplayContext.FIRST_PERSON_LEFT_HAND;
         RENDER_STATE.set(
-                new RenderState(player, displayContext, bodyPivot)
+                new RenderState(player, displayContext, bodyPivot, null)
         );
     }
 
@@ -68,7 +70,8 @@ public final class HammerRenderContext {
                         new RenderState(
                                 entity,
                                 displayContext,
-                                getThirdPersonBodyPivot(bodyTransform)
+                                getThirdPersonBodyPivot(bodyTransform),
+                                bodyTransform
                         )
                 );
             } else {
@@ -106,16 +109,88 @@ public final class HammerRenderContext {
                 .getGameTimeDeltaPartialTick(true);
         float cubicProgress =
                 HammerItem.getPressProgress(renderState.entity(), partialTick);
-        float swingDegrees =
-                HammerItem.getPressStopAngleDegrees(renderState.entity())
-                        * cubicProgress;
-        float direction = isRightHand(displayContext) ? 1.0F : -1.0F;
+        if (isThirdPerson(displayContext)) {
+            applyFixedFacingThirdPersonTransform(
+                    poseStack,
+                    renderState,
+                    partialTick,
+                    cubicProgress
+            );
+        } else {
+            float swingDegrees =
+                    HammerItem.getPressStopAngleDegrees(renderState.entity())
+                            * cubicProgress;
+            float direction = isRightHand(displayContext) ? 1.0F : -1.0F;
+            applyBodyAnchoredRotation(
+                    poseStack,
+                    renderState.bodyPivot(),
+                    direction * swingDegrees
+            );
+        }
+    }
 
-        applyBodyAnchoredRotation(
-                poseStack,
-                renderState.bodyPivot(),
-                direction * swingDegrees
+    private static void applyFixedFacingThirdPersonTransform(
+            PoseStack poseStack,
+            RenderState renderState,
+            float partialTick,
+            float cubicProgress
+    ) {
+        Matrix4f bodyTransform = renderState.bodyTransform();
+        if (bodyTransform == null) {
+            return;
+        }
+
+        Vector3f up = bodyTransform.transformDirection(
+                new Vector3f(0.0F, -1.0F, 0.0F)
+        ).normalize();
+        Vector3f forward = bodyTransform.transformDirection(
+                new Vector3f(0.0F, 0.0F, -1.0F)
+        ).normalize();
+        float renderedBodyYaw = Mth.rotLerp(
+                partialTick,
+                renderState.entity().yBodyRotO,
+                renderState.entity().yBodyRot
         );
+        float targetYaw = HammerItem.getTargetFacingYaw(
+                renderState.entity()
+        );
+        forward.rotateAxis(
+                (renderedBodyYaw - targetYaw) * Mth.DEG_TO_RAD,
+                up.x(),
+                up.y(),
+                up.z()
+        ).normalize();
+
+        Vector3f right = new Vector3f(forward).cross(up).normalize();
+        float targetPitch = HammerItem.getPressContactPitchDegrees(
+                renderState.entity()
+        );
+        float pitch = Mth.lerp(
+                cubicProgress,
+                HammerItem.PRESS_START_PITCH_DEGREES,
+                targetPitch
+        );
+        float angleFromVertical = -pitch * Mth.DEG_TO_RAD;
+        Vector3f hammerAxis = new Vector3f(up)
+                .mul(Mth.cos(angleFromVertical))
+                .fma(Mth.sin(angleFromVertical), forward)
+                .normalize();
+        Vector3f depth = new Vector3f(right)
+                .cross(hammerAxis)
+                .normalize();
+
+        Matrix4f desiredTransform = new Matrix4f();
+        desiredTransform.setColumn(0, new Vector4f(right, 0.0F));
+        desiredTransform.setColumn(1, new Vector4f(hammerAxis, 0.0F));
+        desiredTransform.setColumn(2, new Vector4f(depth, 0.0F));
+        desiredTransform.setTranslation(renderState.bodyPivot());
+        desiredTransform.translate(0.0F, PRESS_PIVOT_OFFSET, 0.0F);
+
+        Matrix4f itemTransform = new Matrix4f(poseStack.last().pose());
+        Matrix4f localCorrection = itemTransform
+                .invert(new Matrix4f())
+                .mul(desiredTransform);
+        poseStack.mulPose(localCorrection);
     }
 
     private static Vector3f getThirdPersonBodyPivot(Matrix4f bodyTransform) {
@@ -182,7 +257,8 @@ public final class HammerRenderContext {
     private record RenderState(
             LivingEntity entity,
             ItemDisplayContext displayContext,
-            Vector3f bodyPivot
+            Vector3f bodyPivot,
+            Matrix4f bodyTransform
     ) {
     }
 }
