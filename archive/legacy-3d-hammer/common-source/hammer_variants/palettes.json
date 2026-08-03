@@ -1,0 +1,156 @@
+{
+  "source_version": "Minecraft Java Edition 1.21.11",
+  "palette_method": "Hand-designed seven-shade ramps informed by vanilla textures and matched to the subtle contrast rhythm of the user's golden-hammer palette; colors are not copied verbatim from the reference textures",
+  "shade_order": "darkest_to_brightest",
+  "colors_per_material": 7,
+  "materials": [
+    {
+      "id": "wooden",
+      "category": "wood",
+      "source_textures": [
+        "resources/_needed/1.21.11/assets/minecraft/textures/item/wooden_axe.png",
+        "resources/_needed/1.21.11/assets/minecraft/textures/item/wooden_hoe.png",
+        "resources/_needed/1.21.11/assets/minecraft/textures/item/wooden_pickaxe.png",
+        "resources/_needed/1.21.11/assets/minecraft/textures/item/wooden_shovel.png",
+        "resources/_needed/1.21.11/assets/minecraft/textures/item/wooden_sword.png"
+      ],
+      "colors": [
+        "#32270f",
+        "#3e3012",
+        "#4b3915",
+        "#594419",
+        "#69511e",
+        "#7a5f24",
+        "#8d6e2c"
+      ]
+    },
+    {
+      "id": "cobblestone",
+      "category": "stone",
+      "source_textures": [
+        "resources/_needed/1.21.11/assets/minecraft/textures/block/cobblestone.png"
+      ],
+      "colors": [
+        "#5f6260",
+        "#6b6e6b",
+        "#777a76",
+        "#848783",
+        "#91958f",
+        "#a0a49d",
+        "#b0b4ac"
+      ]
+    },
+    {
+      "id": "blackstone",
+      "category": "stone",
+      "source_textures": [
+        "resources/_needed/1.21.11/assets/minecraft/textures/block/blackstone.png"
+      ],
+      "colors": [
+        "#29252c",
+        "#312d35",
+        "#3a3640",
+        "#443f4a",
+        "#4f4a55",
+        "#5b5661",
+        "#68636e"
+      ]
+    },
+    {
+      "id": "cobbled_deepslate",
+      "category": "stone",
+      "source_textures": [
+        "resources/_needed/1.21.11/assets/minecraft/textures/block/cobbled_deepslate.png"
+      ],
+      "colors": [
+        "#353b3e",
+        "#3e4548",
+        "#485053",
+        "#535b5e",
+        "#5f676a",
+        "#6c7477",
+        "#7a8285"
+      ]
+    },
+    {
+      "id": "copper",
+      "category": "metal",
+      "source_textures": [
+        "resources/_needed/1.21.11/assets/minecraft/textures/item/copper_ingot.png"
+      ],
+      "colors": [
+        "#9d5139",
+        "#ac5b40",
+        "#bc6649",
+        "#cd7253",
+        "#dc805f",
+        "#e99070",
+        "#f3a486"
+      ]
+    },
+    {
+      "id": "iron",
+      "category": "metal",
+      "source_textures": [
+        "resources/_needed/1.21.11/assets/minecraft/textures/item/iron_ingot.png"
+      ],
+      "colors": [
+        "#747b7b",
+        "#818888",
+        "#8e9695",
+        "#9da4a2",
+        "#adb3b0",
+        "#bec4c0",
+        "#d1d6d1"
+      ]
+    },
+    {
+      "id": "gold",
+      "category": "metal",
+      "source_textures": [
+        "resources/_needed/1.21.11/assets/minecraft/textures/item/gold_ingot.png"
+      ],
+      "colors": [
+        "#d49515",
+        "#ebae12",
+        "#f9bd23",
+        "#ffd83e",
+        "#ffec4f",
+        "#fffd90",
+        "#fdfcca"
+      ]
+    },
+    {
+      "id": "diamond",
+      "category": "gem",
+      "source_textures": [
+        "resources/_needed/1.21.11/assets/minecraft/textures/item/diamond.png"
+      ],
+      "colors": [
+        "#168f89",
+        "#1b9f98",
+        "#24afa6",
+        "#31c0b4",
+        "#43d0c2",
+        "#5ce0d1",
+        "#81eee0"
+      ]
+    },
+    {
+      "id": "netherite",
+      "category": "metal",
+      "source_textures": [
+        "resources/_needed/1.21.11/assets/minecraft/textures/item/netherite_ingot.png"
+      ],
+      "colors": [
+        "#31282d",
+        "#393035",
+        "#42393e",
+        "#4c4348",
+        "#574e53",
+        "#635a5f",
+        "#71686d"
+      ]
+    }
+  ]
+}

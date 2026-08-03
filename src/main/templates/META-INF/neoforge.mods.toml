@@ -8,10 +8,6 @@ version = "${mod_version}"
 displayName = "${mod_name}"
 authors = "${mod_authors}"
 description = '''${mod_description}'''
-enumExtensions = "META-INF/enumextensions.json"
-
-[[mixins]]
-config = "handytools.mixins.json"
 
 [[dependencies."${mod_id}"]]
 modId = "neoforge"

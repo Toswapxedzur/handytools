@@ -1,6 +1,8 @@
 # Handy Tools
 
-Handy Tools is a NeoForge 1.21.1 mod that adds six material hammers:
+Handy Tools is a NeoForge 1.21.1 mod for reworking familiar tools with more
+purposeful mechanics and full-body animation. It currently registers six
+material hammers:
 
 - Wooden Hammer
 - Cobblestone Hammer
@@ -9,18 +11,42 @@ Handy Tools is a NeoForge 1.21.1 mod that adds six material hammers:
 - Diamond Hammer
 - Netherite Hammer
 
-Each hammer uses an Ex Nihilo: Sequentia hammer sprite in inventory, first
-person, dropped-item, item-frame, head, and fixed contexts. Third person uses
-the full 3D hammer model at one model pixel per world pixel.
+Each hammer currently uses its flat Ex Nihilo: Sequentia sprite in every item
+display context. The retired full-scale 3D models and textures are preserved
+outside the shipped resources under `archive/legacy-3d-hammer/`.
 
-Hold right click while targeting a block to begin a focused press. The hammer
-can lock only when the block center is within 1.5 blocks and 60 degrees of the
-player's view, and the block bounding-box top is 0.5 to 1.5 blocks above the
-player's feet. Its target-facing swing accelerates cubically around a pivot six
-model pixels beyond the wooden handle, stops at the block top, and brings both
-third-person hands toward the handle. Movement, camera turning, screen opening,
-hotbar changes, and other interactions remain locked until right click is
-released.
+## Shared tool-action lifecycle
+
+Continuous tool use is driven by one reusable, server-authoritative phase
+contract:
+
+1. `PREPARATION`: normal held pose to the designated operating/contact pose.
+2. `OPERATION_RAISE`: contact pose to the raised pose above the head.
+3. `OPERATION_DESCEND`: raised pose back to contact.
+4. `RELEASE`: contact pose back to the normal held pose.
+
+Raise and descend repeat while right click remains held. The server fires the
+tool's impact hook only when descent reaches contact, so future block changes,
+damage, sounds, particles, durability, and cooldowns can share the exact action
+timing rather than being inferred from a client animation. The hammer's final
+impact mechanic is intentionally not assigned yet.
+
+For the hammer, the preparation endpoint must place the handle line along the
+acting arm rather than perpendicular to it. That is now an explicit animation
+contract, not geometry hard-coded into the item renderer.
+
+Releasing during preparation finishes the move to the contact pose without
+starting a stroke; releasing during a stroke finishes that stroke. Release then
+starts from contact, where both adjacent smoothstep curves have zero velocity,
+so the tool never snaps or reverses direction abruptly. Phase state exposes
+partial-tick smoothstep progress for the PAL animation layer that will be added
+next.
+
+Hammer targeting retains the focused-use constraints: the block center must be
+within 1.5 blocks and inside a 60-degree view cone, and its outline bounding-box
+top must be 0.5 to 1.5 blocks above the player's feet. Movement, camera turning,
+screen opening, hotbar changes, attacks, mining, and other interactions remain
+locked through preparation, operation, and release.
 
 Player Animation Library (PAL) is embedded as a required nested NeoForge mod,
 so users only need to install the Handy Tools JAR. Create 6 and JEI 19 remain

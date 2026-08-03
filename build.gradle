@@ -120,60 +120,105 @@ def hammerIds = [
         'netherite_hammer'
 ]
 
+def archived3dVariantIds = [
+        'wooden_hammer',
+        'cobblestone_hammer',
+        'cobbled_deepslate_hammer',
+        'blackstone_hammer',
+        'copper_hammer',
+        'iron_hammer',
+        'gold_hammer',
+        'diamond_hammer',
+        'netherite_hammer'
+]
+
 tasks.register('validateHammerAssets') {
     group = 'verification'
-    description = 'Validates the paired flat and full-scale third-person hammer assets.'
+    description = 'Validates active flat hammer assets and the legacy 3D archive.'
     notCompatibleWithConfigurationCache('Reads and parses the project asset tree directly.')
     inputs.dir 'src/main/resources/assets/handytools'
+    inputs.dir 'archive/legacy-3d-hammer'
 
     doLast {
         def assets = file('src/main/resources/assets/handytools')
+        def archivedAssets = file(
+                'archive/legacy-3d-hammer/src/main/resources/assets/handytools'
+        )
         def parser = new JsonSlurper()
 
         hammerIds.each { id ->
-            def worldModelFile = new File(assets, "models/item/${id}.json")
-            def guiModelFile = new File(assets, "models/item/${id}_inventory.json")
-            def worldTextureFile = new File(assets, "textures/item/hammers/${id}.png")
-            def guiTextureFile = new File(assets, "textures/item/hammer_items/${id}.png")
+            def activeModelFile = new File(assets, "models/item/${id}.json")
+            def activeTextureFile = new File(
+                    assets,
+                    "textures/item/hammer_items/${id}.png"
+            )
+            def archivedModelFile = new File(
+                    archivedAssets,
+                    "models/item/${id}.json"
+            )
+            def archivedTextureFile = new File(
+                    archivedAssets,
+                    "textures/item/hammers/${id}.png"
+            )
 
-            [worldModelFile, guiModelFile, worldTextureFile, guiTextureFile].each { required ->
+            [activeModelFile, activeTextureFile,
+                    archivedModelFile, archivedTextureFile].each { required ->
                 if (!required.isFile()) {
                     throw new GradleException("Missing hammer asset: ${required}")
                 }
             }
 
-            def worldModel = parser.parse(worldModelFile)
-            def guiModel = parser.parse(guiModelFile)
-            def worldTextures = worldModel.textures?.values() ?: []
+            def activeModel = parser.parse(activeModelFile)
+            def archivedModel = parser.parse(archivedModelFile)
+            def archivedTextures = archivedModel.textures?.values() ?: []
 
-            if (worldTextures.any { !it.startsWith('handytools:item/hammers/') }) {
-                throw new GradleException("${id} 3D model has an invalid texture namespace")
+            if (activeModel.parent != 'minecraft:item/handheld_mace') {
+                throw new GradleException("${id} item model must inherit handheld_mace")
             }
-            if (guiModel.parent != 'minecraft:item/handheld_mace') {
-                throw new GradleException("${id} GUI model must inherit handheld_mace")
+            if (activeModel.textures?.layer0 != "handytools:item/hammer_items/${id}") {
+                throw new GradleException("${id} item model points to the wrong texture")
             }
-            if (guiModel.textures?.layer0 != "handytools:item/hammer_items/${id}") {
-                throw new GradleException("${id} GUI model points to the wrong texture")
-            }
-
-            def head = worldModel.elements?.find { it.name == 'hammer_head' }
-            def lowerHandle = worldModel.elements?.find { it.name == 'handle_lower' }
-            if (head?.from != [4, 8, 4] || head?.to != [12, 16, 12]) {
+            if (archivedTextures.any {
+                !it.startsWith('handytools:item/hammers/')
+            }) {
                 throw new GradleException(
-                        "${id} head geometry no longer matches the press contact calculation"
+                        "${id} archived 3D model has an invalid texture namespace"
                 )
             }
-            if (lowerHandle?.from != [7, -4, 7] || lowerHandle?.to != [9, 2, 9]) {
+            if (!archivedModel.elements) {
                 throw new GradleException(
-                        "${id} handle no longer supports the six-pixel press pivot"
+                        "${id} archived 3D model has no geometry"
                 )
             }
+        }
 
-            ['thirdperson_righthand', 'thirdperson_lefthand'].each { context ->
-                if (worldModel.display?.get(context)?.scale != [1.0, 1.0, 1.0]) {
-                    throw new GradleException(
-                            "${id} ${context} must use one model unit per world pixel"
-                    )
+        if (new File(assets, 'textures/item/hammers').exists()
+                || new File(assets, 'models/item/wooden_hammer_inventory.json').exists()) {
+            throw new GradleException(
+                    'Legacy 3D/context-switching assets must remain outside active resources'
+            )
+        }
+
+        def commonSource = file('archive/legacy-3d-hammer/common-source')
+        [
+                'gold_hammer.png',
+                'golden_hammer.json',
+                'golden_hammer_16x16.png',
+                'hammer_variants/generate_variants.mjs',
+                'hammer_variants/palettes.json',
+                'hammer_variants/palettes.png'
+        ].each { path ->
+            if (!new File(commonSource, path).isFile()) {
+                throw new GradleException("Missing archived 3D source: ${path}")
+            }
+        }
+        archived3dVariantIds.each { id ->
+            [
+                    "hammer_variants/assets/common/models/item/hammers/${id}.json",
+                    "hammer_variants/assets/common/textures/item/hammers/${id}.png"
+            ].each { path ->
+                if (!new File(commonSource, path).isFile()) {
+                    throw new GradleException("Missing archived 3D variant: ${path}")
                 }
             }
         }
