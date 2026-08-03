@@ -1,9 +1,10 @@
 package com.minecart.handytools;
 
-import java.util.Collections;
-import java.util.Map;
+import com.minecart.handytools.toolaction.PhasedToolAction;
+import com.minecart.handytools.toolaction.ToolActionDurations;
+import com.minecart.handytools.toolaction.ToolActionManager;
+import com.minecart.handytools.toolaction.ToolActionTarget;
 import java.util.Optional;
-import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
@@ -25,24 +26,17 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-public final class HammerItem extends Item {
-    public static final int PRESS_FALL_TICKS = 12;
+public final class HammerItem extends Item implements PhasedToolAction {
     public static final double MAX_TARGET_DISTANCE = 1.5D;
     public static final double MIN_TARGET_TOP_ABOVE_FEET = 0.5D;
     public static final double MAX_TARGET_TOP_ABOVE_FEET = 1.5D;
-    public static final float PRESS_START_PITCH_DEGREES = -60.0F;
 
     private static final int MAX_USE_DURATION = 72_000;
-    private static final double PRESS_PIVOT_HEIGHT = 1.5D;
-    private static final double HAMMER_HEAD_CENTER_DISTANCE = 22.0D / 16.0D;
-    private static final double HAMMER_HEAD_HALF_SIZE = 4.0D / 16.0D;
-    private static final double CONTACT_ANGLE_STEP = 0.25D;
-    private static final double MAX_CONTACT_ANGLE = 179.75D;
     private static final double MAX_TARGET_DISTANCE_SQUARED =
             MAX_TARGET_DISTANCE * MAX_TARGET_DISTANCE;
     private static final double MIN_VIEW_DOT = 0.5D;
-    private static final Map<LivingEntity, PressTarget> PRESS_TARGETS =
-            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final ToolActionDurations ACTION_DURATIONS =
+            new ToolActionDurations(8, 10, 6, 8);
 
     public HammerItem(Properties properties) {
         super(properties);
@@ -51,20 +45,21 @@ public final class HammerItem extends Item {
     @Override
     public InteractionResult useOn(UseOnContext context) {
         Player player = context.getPlayer();
-        if (player == null || player.isUsingItem()) {
+        if (player == null || player.isUsingItem()
+                || ToolActionManager.isActive(player)) {
             return InteractionResult.FAIL;
         }
 
-        Optional<PressTarget> target = findLockableTarget(
+        Optional<ToolActionTarget> target = findActionTarget(
                 context.getLevel(),
                 player,
                 context.getClickedPos()
         );
-        if (target.isEmpty()) {
+        if (target.isEmpty()
+                || !startAction(player, context.getHand(), target.get())) {
             return InteractionResult.PASS;
         }
 
-        startPress(player, context.getHand(), target.get());
         return InteractionResult.CONSUME;
     }
 
@@ -78,20 +73,21 @@ public final class HammerItem extends Item {
         BlockHitResult hitResult =
                 getPlayerPOVHitResult(level, player, ClipContext.Fluid.NONE);
 
-        if (hitResult.getType() != HitResult.Type.BLOCK || player.isUsingItem()) {
+        if (hitResult.getType() != HitResult.Type.BLOCK
+                || player.isUsingItem()
+                || ToolActionManager.isActive(player)) {
             return InteractionResultHolder.fail(stack);
         }
 
-        Optional<PressTarget> target = findLockableTarget(
+        Optional<ToolActionTarget> target = findActionTarget(
                 level,
                 player,
                 hitResult.getBlockPos()
         );
-        if (target.isEmpty()) {
+        if (target.isEmpty() || !startAction(player, hand, target.get())) {
             return InteractionResultHolder.fail(stack);
         }
 
-        startPress(player, hand, target.get());
         return InteractionResultHolder.consume(stack);
     }
 
@@ -102,7 +98,7 @@ public final class HammerItem extends Item {
             LivingEntity entity,
             int timeLeft
     ) {
-        PRESS_TARGETS.remove(entity);
+        ToolActionManager.requestRelease(entity);
     }
 
     @Override
@@ -111,7 +107,7 @@ public final class HammerItem extends Item {
             Level level,
             LivingEntity entity
     ) {
-        PRESS_TARGETS.remove(entity);
+        ToolActionManager.requestRelease(entity);
         return stack;
     }
 
@@ -125,117 +121,13 @@ public final class HammerItem extends Item {
         return UseAnim.NONE;
     }
 
-    public static boolean isPressing(LivingEntity entity) {
-        return entity.isUsingItem()
-                && entity.getUseItem().getItem() instanceof HammerItem;
+    @Override
+    public ToolActionDurations actionDurations(ItemStack stack) {
+        return ACTION_DURATIONS;
     }
 
-    public static float getPressProgress(LivingEntity entity, float partialTick) {
-        if (!isPressing(entity)) {
-            return 0.0F;
-        }
-
-        int currentTick = entity.getTicksUsingItem();
-        float currentProgress = getCubicTickProgress(currentTick);
-        float nextProgress = getCubicTickProgress(currentTick + 1);
-        return Mth.lerp(
-                Mth.clamp(partialTick, 0.0F, 1.0F),
-                currentProgress,
-                nextProgress
-        );
-    }
-
-    private static float getCubicTickProgress(int tick) {
-        float linear = Mth.clamp(
-                (float) tick / PRESS_FALL_TICKS,
-                0.0F,
-                1.0F
-        );
-        return linear * linear * linear;
-    }
-
-    public static boolean canStartPress(
-            Level level,
-            Player player,
-            BlockPos blockPos
-    ) {
-        return findLockableTarget(level, player, blockPos).isPresent();
-    }
-
-    public static Optional<PressTarget> getPressTarget(LivingEntity entity) {
-        if (!isPressing(entity)) {
-            PRESS_TARGETS.remove(entity);
-            return Optional.empty();
-        }
-
-        PressTarget existing = PRESS_TARGETS.get(entity);
-        if (existing != null) {
-            return Optional.of(existing);
-        }
-
-        if (!(entity instanceof Player player)) {
-            return Optional.empty();
-        }
-
-        BlockHitResult hitResult = getPlayerPOVHitResult(
-                player.level(),
-                player,
-                ClipContext.Fluid.NONE
-        );
-        if (hitResult.getType() != HitResult.Type.BLOCK) {
-            return Optional.empty();
-        }
-
-        Optional<PressTarget> reconstructed = findLockableTarget(
-                player.level(),
-                player,
-                hitResult.getBlockPos()
-        );
-        reconstructed.ifPresent(target -> PRESS_TARGETS.put(entity, target));
-        return reconstructed;
-    }
-
-    public static float getTargetFacingYaw(LivingEntity entity) {
-        return getPressTarget(entity)
-                .map(target -> {
-                    Vec3 difference = target.blockCenter()
-                            .subtract(entity.position());
-                    return (float) Mth.atan2(
-                            -difference.x,
-                            difference.z
-                    ) * Mth.RAD_TO_DEG;
-                })
-                .orElse(entity.getYRot());
-    }
-
-    public static float getPressStopAngleDegrees(LivingEntity entity) {
-        return getPressTarget(entity)
-                .map(target -> {
-                    Vec3 difference = target.contactPoint()
-                            .subtract(entity.position());
-                    double horizontal = Math.sqrt(
-                            difference.x * difference.x
-                                    + difference.z * difference.z
-                    );
-                    double vertical = Math.max(difference.y, 1.0E-4D);
-                    return Mth.clamp(
-                            (float) Math.toDegrees(
-                                    Math.atan2(horizontal, vertical)
-                            ),
-                            0.0F,
-                            80.0F
-                    );
-                })
-                .orElse(0.0F);
-    }
-
-    public static float getPressContactPitchDegrees(LivingEntity entity) {
-        return getPressTarget(entity)
-                .map(PressTarget::contactPitchDegrees)
-                .orElse(PRESS_START_PITCH_DEGREES);
-    }
-
-    private static Optional<PressTarget> findLockableTarget(
+    @Override
+    public Optional<ToolActionTarget> findActionTarget(
             Level level,
             Player player,
             BlockPos blockPos
@@ -279,149 +171,20 @@ public final class HammerItem extends Item {
                 bounds.maxY,
                 Mth.clamp(player.getZ(), bounds.minZ, bounds.maxZ)
         );
-        float contactPitch = findContactPitchDegrees(
-                player,
-                blockCenter,
-                contactPoint,
-                bounds
-        );
         return Optional.of(
-                new PressTarget(
-                        blockPos.immutable(),
-                        blockCenter,
-                        contactPoint,
-                        contactPitch
-                )
+                new ToolActionTarget(blockPos, blockCenter, contactPoint)
         );
     }
 
-    private static float findContactPitchDegrees(
-            Player player,
-            Vec3 blockCenter,
-            Vec3 contactPoint,
-            AABB bounds
-    ) {
-        double forwardX = blockCenter.x - player.getX();
-        double forwardZ = blockCenter.z - player.getZ();
-        double horizontalLength = Math.sqrt(
-                forwardX * forwardX + forwardZ * forwardZ
-        );
-        if (horizontalLength < 1.0E-8D) {
-            return PRESS_START_PITCH_DEGREES;
-        }
-        forwardX /= horizontalLength;
-        forwardZ /= horizontalLength;
-
-        double nearX = (forwardX >= 0.0D ? bounds.minX : bounds.maxX)
-                - player.getX();
-        double farX = (forwardX >= 0.0D ? bounds.maxX : bounds.minX)
-                - player.getX();
-        double nearZ = (forwardZ >= 0.0D ? bounds.minZ : bounds.maxZ)
-                - player.getZ();
-        double farZ = (forwardZ >= 0.0D ? bounds.maxZ : bounds.minZ)
-                - player.getZ();
-        double blockNear = nearX * forwardX + nearZ * forwardZ;
-        double blockFar = farX * forwardX + farZ * forwardZ;
-        double pivotY = player.getY() + PRESS_PIVOT_HEIGHT;
-        double blockBottom = bounds.minY - pivotY;
-        double blockTop = bounds.maxY - pivotY;
-
-        double startAngle = -PRESS_START_PITCH_DEGREES;
-        if (headIntersectsTarget(
-                startAngle,
-                blockNear,
-                blockFar,
-                blockBottom,
-                blockTop
-        )) {
-            return PRESS_START_PITCH_DEGREES;
-        }
-
-        double previousAngle = startAngle;
-        for (double angle = startAngle + CONTACT_ANGLE_STEP;
-                angle <= MAX_CONTACT_ANGLE;
-                angle += CONTACT_ANGLE_STEP) {
-            if (headIntersectsTarget(
-                    angle,
-                    blockNear,
-                    blockFar,
-                    blockBottom,
-                    blockTop
-            )) {
-                double lower = previousAngle;
-                double upper = angle;
-                for (int refinement = 0; refinement < 12; refinement++) {
-                    double middle = (lower + upper) * 0.5D;
-                    if (headIntersectsTarget(
-                            middle,
-                            blockNear,
-                            blockFar,
-                            blockBottom,
-                            blockTop
-                    )) {
-                        upper = middle;
-                    } else {
-                        lower = middle;
-                    }
-                }
-                return (float) -upper;
-            }
-            previousAngle = angle;
-        }
-
-        Vec3 pivotToContact = contactPoint.subtract(
-                player.getX(),
-                pivotY,
-                player.getZ()
-        );
-        double horizontal = Math.sqrt(
-                pivotToContact.x * pivotToContact.x
-                        + pivotToContact.z * pivotToContact.z
-        );
-        double contactAngle = Math.toDegrees(
-                Math.atan2(horizontal, pivotToContact.y)
-        );
-        return (float) -Mth.clamp(
-                contactAngle,
-                startAngle,
-                MAX_CONTACT_ANGLE
-        );
-    }
-
-    private static boolean headIntersectsTarget(
-            double angleDegrees,
-            double blockNear,
-            double blockFar,
-            double blockBottom,
-            double blockTop
-    ) {
-        double angle = Math.toRadians(angleDegrees);
-        double sine = Math.sin(angle);
-        double cosine = Math.cos(angle);
-        double projectedHalfSize = HAMMER_HEAD_HALF_SIZE
-                * (Math.abs(sine) + Math.abs(cosine));
-        double headForward = HAMMER_HEAD_CENTER_DISTANCE * sine;
-        double headY = HAMMER_HEAD_CENTER_DISTANCE * cosine;
-        return headForward + projectedHalfSize >= blockNear
-                && headForward - projectedHalfSize <= blockFar
-                && headY + projectedHalfSize >= blockBottom
-                && headY - projectedHalfSize <= blockTop;
-    }
-
-    private static void startPress(
+    private boolean startAction(
             Player player,
             InteractionHand hand,
-            PressTarget target
+            ToolActionTarget target
     ) {
-        PRESS_TARGETS.put(player, target);
+        if (!ToolActionManager.start(player, hand, this, target)) {
+            return false;
+        }
         player.startUsingItem(hand);
-    }
-
-    public record PressTarget(
-            BlockPos blockPos,
-            Vec3 blockCenter,
-            Vec3 contactPoint,
-            float contactPitchDegrees
-    ) {
+        return true;
     }
 }
