@@ -18,6 +18,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
@@ -79,7 +80,6 @@ public final class HammerAnimationClientSetup {
         private final Map<ToolActionPhase, CachedAnimation> animationCache =
                 new EnumMap<>(ToolActionPhase.class);
         private boolean acting;
-        private ToolActionPhase activePhase;
 
         private HammerStateHandler(
                 AbstractClientPlayer player,
@@ -100,7 +100,6 @@ public final class HammerAnimationClientSetup {
                     controller.forceAnimationReset();
                 }
                 acting = false;
-                activePhase = null;
                 mirror.enabled = false;
                 return PlayState.STOP;
             }
@@ -108,10 +107,6 @@ public final class HammerAnimationClientSetup {
             ActionView action = view.get();
             acting = true;
             mirror.enabled = actionArm(action.hand()) == HumanoidArm.LEFT;
-            if (action.phase() != activePhase) {
-                controller.forceAnimationReset();
-                activePhase = action.phase();
-            }
 
             RawAnimation animation = animationFor(action.phase());
             if (animation == null) {
@@ -124,6 +119,17 @@ public final class HammerAnimationClientSetup {
         }
 
         private Optional<ActionView> actionView() {
+            if (player instanceof LocalPlayer) {
+                return ToolActionManager.getState(player)
+                        .filter(state -> player.getItemInHand(state.hand()).getItem()
+                                instanceof HammerItem)
+                        .map(state -> new ActionView(
+                                state.phase(),
+                                state.hand(),
+                                state.elapsedTicks()
+                        ));
+            }
+
             Optional<SyncedToolActionStates.SyncedState> synced =
                     SyncedToolActionStates.get(player);
             if (synced.isPresent()) {
@@ -139,14 +145,7 @@ public final class HammerAnimationClientSetup {
                 ));
             }
 
-            return ToolActionManager.getState(player)
-                    .filter(state -> player.getItemInHand(state.hand()).getItem()
-                            instanceof HammerItem)
-                    .map(state -> new ActionView(
-                            state.phase(),
-                            state.hand(),
-                            state.elapsedTicks()
-                    ));
+            return Optional.empty();
         }
 
         private RawAnimation animationFor(ToolActionPhase phase) {

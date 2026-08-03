@@ -314,7 +314,7 @@ tasks.register('validateHammerAnimation') {
                 hammer_release    : 0.5
         ]
         def bones = [
-                'body', 'torso', 'head', 'right_arm', 'left_arm',
+                'body', 'torso', 'head', 'right_arm',
                 'right_leg', 'left_leg', 'right_item'
         ]
 
@@ -337,7 +337,34 @@ tasks.register('validateHammerAnimation') {
             }
         }
 
-        ['hammer_preparation', 'hammer_raise', 'hammer_release'].each { name ->
+        phases.keySet().each { name ->
+            if (animations[name].bones.left_arm != null) {
+                throw new GradleException(
+                        "${name} must leave the free arm under vanilla control"
+                )
+            }
+        }
+
+        animations.each { name, animation ->
+            animation.bones.body.position.each { time, frame ->
+                if (frame.vector.any { Math.abs(it) > 0.75 }) {
+                    throw new GradleException(
+                            "${name} body translation exceeds restrained weight shift"
+                    )
+                }
+            }
+            ['right_leg', 'left_leg'].each { bone ->
+                animation.bones[bone].rotation.each { time, frame ->
+                    if (frame.vector.any { Math.abs(it) > 4.0 }) {
+                        throw new GradleException(
+                                "${name} ${bone} rotation is too large"
+                        )
+                    }
+                }
+            }
+        }
+
+        ['hammer_preparation', 'hammer_release'].each { name ->
             animations[name].bones.each { bone, transforms ->
                 transforms.each { transform, frames ->
                     def lastTime = frames.keySet().max { it as BigDecimal }
@@ -350,27 +377,27 @@ tasks.register('validateHammerAnimation') {
             }
         }
 
+        animations.hammer_raise.bones.each { bone, transforms ->
+            transforms.each { transform, frames ->
+                def lastTime = frames.keySet().max { it as BigDecimal }
+                if (frames[lastTime].easing != 'linear') {
+                    throw new GradleException(
+                            "hammer_raise ${bone}.${transform} must be linear"
+                    )
+                }
+            }
+        }
+
         animations.hammer_descend.bones.each { bone, transforms ->
             transforms.each { transform, frames ->
                 def start = frames['0.0']
-                def bridge = frames['0.35']
                 def impact = frames['0.4']
-                if (start == null || bridge?.easing != 'easeincubic'
-                        || impact?.easing != 'easeoutcubic') {
+                if (start == null || frames.size() != 2
+                        || impact?.easing != 'easeincubic') {
                     throw new GradleException(
-                            "hammer_descend ${bone}.${transform} must use its " +
-                                    'matched cubic impact bridge'
-                    )
-                }
-                (0..2).each { axis ->
-                    def expected = start.vector[axis] + 0.875 *
-                            (impact.vector[axis] - start.vector[axis])
-                    if (Math.abs(bridge.vector[axis] - expected) > 0.000001) {
-                        throw new GradleException(
-                                "hammer_descend ${bone}.${transform} breaks " +
-                                        'velocity continuity before impact'
+                            "hammer_descend ${bone}.${transform} must be one " +
+                                    'uninterrupted cubic slam'
                         )
-                    }
                 }
             }
         }
@@ -387,7 +414,9 @@ tasks.register('validateHammerAnimation') {
         }
         def joins = [
                 ['hammer_preparation', 'hammer_raise'],
+                ['hammer_preparation', 'hammer_release'],
                 ['hammer_raise', 'hammer_descend'],
+                ['hammer_descend', 'hammer_raise'],
                 ['hammer_descend', 'hammer_release'],
                 ['hammer_release', 'hammer_preparation']
         ]
@@ -397,8 +426,8 @@ tasks.register('validateHammerAnimation') {
             def after = animations[join[1]]
             bones.each { bone ->
                 before.bones[bone].keySet().each { transform ->
-                    if (after.bones[bone][transform] != null
-                            && lastVector(before, bone, transform)
+                    if (after.bones[bone][transform] == null
+                            || lastVector(before, bone, transform)
                             != firstVector(after, bone, transform)) {
                         throw new GradleException(
                                 "PAL pose discontinuity at ${join[0]} -> " +
