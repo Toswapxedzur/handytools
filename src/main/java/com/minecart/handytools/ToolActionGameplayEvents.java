@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -114,6 +116,14 @@ public final class ToolActionGameplayEvents {
         ToolActionManager.cancel(event.getEntity());
     }
 
+    @SubscribeEvent
+    public static void syncActionWhenTrackingStarts(PlayerEvent.StartTracking event) {
+        if (event.getEntity() instanceof ServerPlayer receivingPlayer
+                && event.getTarget() instanceof Player actingPlayer) {
+            ToolActionManager.syncStateTo(receivingPlayer, actingPlayer);
+        }
+    }
+
     private static void applyMovementLock(Player player) {
         if (!ToolActionManager.isActive(player)) {
             LOCKED_PLAYERS.remove(player);
@@ -159,15 +169,27 @@ public final class ToolActionGameplayEvents {
             float fallDistance
     ) {
         private static LockedPlayerState capture(Player player) {
+            float bodyYRot = ToolActionManager.getState(player)
+                    .map(state -> yawToward(
+                            player.position(),
+                            state.target().blockCenter()
+                    ))
+                    .orElse(player.yBodyRot);
             return new LockedPlayerState(
                     player.level().dimension(),
                     player.position(),
                     player.getYRot(),
                     player.getXRot(),
-                    player.yBodyRot,
+                    bodyYRot,
                     player.getInventory().selected,
                     player.fallDistance
             );
+        }
+
+        private static float yawToward(Vec3 origin, Vec3 target) {
+            Vec3 offset = target.subtract(origin);
+            return (float) (Mth.atan2(offset.z, offset.x)
+                    * Mth.RAD_TO_DEG) - 90.0F;
         }
     }
 }

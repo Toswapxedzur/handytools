@@ -37,10 +37,17 @@ contract, not geometry hard-coded into the item renderer.
 
 Releasing during preparation finishes the move to the contact pose without
 starting a stroke; releasing during a stroke finishes that stroke. Release then
-starts from contact, where both adjacent smoothstep curves have zero velocity,
-so the tool never snaps or reverses direction abruptly. Phase state exposes
-partial-tick smoothstep progress for the PAL animation layer that will be added
-next.
+starts from the exact contact endpoint, so the tool never jumps between phases.
+PAL interpolates the authored poses every render frame: preparation, raise, and
+release use eased cubic motion. Descent accelerates cubically through most of
+the stroke, then uses a short matched-velocity ease-out to stop continuously at
+the server-owned impact tick.
+
+The hammer PAL layer moves the body, head, both arms, both legs, and acting-hand
+item together. It mirrors for left-handed and off-hand actions, turns the player
+body toward the captured block center, and receives phase snapshots from the
+server for the acting player and every tracking client. All four animation clips
+share identical seam poses: held -> contact -> overhead -> contact -> held.
 
 Hammer targeting retains the focused-use constraints: the block center must be
 within 1.5 blocks and inside a 60-degree view cone, and its outline bounding-box
@@ -49,8 +56,12 @@ screen opening, hotbar changes, attacks, mining, and other interactions remain
 locked through preparation, operation, and release.
 
 Player Animation Library (PAL) is embedded as a required nested NeoForge mod,
-so users only need to install the Handy Tools JAR. Create 6 and JEI 19 remain
-optional dependencies; Handy Tools builds and runs without either one.
+so users only need to install the Handy Tools JAR. PAL deliberately leaves the
+vanilla first-person camera and hands untouched. First-person Model 2.7.2+ is a
+client-only optional dependency; when installed, it renders the PAL-driven
+third-person body in first person without letting the animation layer transform
+the camera. Create 6 and JEI 19 also remain optional dependencies. Handy Tools
+builds and runs without any of those optional mods.
 
 ## Build
 

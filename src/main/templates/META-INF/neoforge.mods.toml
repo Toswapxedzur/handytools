@@ -43,3 +43,10 @@ type = "optional"
 versionRange = "[19,)"
 ordering = "AFTER"
 side = "BOTH"
+
+[[dependencies."${mod_id}"]]
+modId = "firstperson"
+type = "optional"
+versionRange = "${first_person_version_range}"
+ordering = "AFTER"
+side = "CLIENT"
