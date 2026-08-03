@@ -38,19 +38,20 @@ contract, not geometry hard-coded into the item renderer.
 Releasing during preparation finishes the move to the contact pose without
 starting a stroke; releasing during a stroke finishes that stroke. Release then
 starts from the exact contact endpoint, so the tool never jumps between phases.
-PAL interpolates the authored poses every render frame: preparation, raise, and
-release use eased cubic motion. Descent accelerates cubically through most of
-the stroke, then uses a short matched-velocity ease-out to stop continuously at
-the server-owned impact tick.
+PAL interpolates the authored poses every render frame: preparation and release
+use eased cubic motion, the complete raise is linear, and the complete downward
+slam uses cubic acceleration into the server-owned impact tick.
 
-The hammer PAL layer moves the body, head, both arms, both legs, and acting-hand
-item together. It mirrors for left-handed and off-hand actions. During
-preparation, the visible head and body turn toward the captured block center
-with the same cubic ease as the pose, while the actual first-person yaw and
-pitch remain locked; release reverses that turn. The server sends phase
-snapshots to the acting player and every tracking client, and PAL is explicitly
-reset whenever the authoritative phase changes. All four animation clips share
-identical seam poses: held -> contact -> overhead -> contact -> held.
+The hammer PAL layer moves only the acting arm and its item. The torso, head,
+and both legs make a restrained supporting weight shift; the free arm remains
+under vanilla control. The pose mirrors for left-handed and off-hand actions.
+During preparation, the visible head and body turn toward the captured block
+center with the same cubic ease as the pose, while the actual first-person yaw
+and pitch remain locked; release reverses that turn. The local player animation
+uses the local copy of the authoritative phase clock, avoiding phase-packet
+rewinds, while tracking clients use server snapshots. PAL changes between the
+four clips without an additional hard phase reset, and every clip shares exact
+seam poses: held -> contact -> overhead -> contact -> held.
 
 Release is requested only by Minecraft's release-use callbacks. A transient
 client-side `isUsingItem` value during startup cannot redirect preparation into
