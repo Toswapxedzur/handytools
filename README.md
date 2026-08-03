@@ -22,8 +22,9 @@ third-person hands toward the handle. Movement, camera turning, screen opening,
 hotbar changes, and other interactions remain locked until right click is
 released.
 
-Create 6 and JEI 19 are declared as optional dependencies. Handy Tools builds
-and runs without either mod installed.
+Player Animation Library (PAL) is embedded as a required nested NeoForge mod,
+so users only need to install the Handy Tools JAR. Create 6 and JEI 19 remain
+optional dependencies; Handy Tools builds and runs without either one.
 
 ## Build
 
@@ -38,6 +39,9 @@ The distributable JAR is written to `build/libs/`.
 The six flat hammer item sprites are from Ex Nihilo: Sequentia and are licensed
 separately under CC BY-NC-SA 4.0. See `THIRD_PARTY_NOTICES.md` for attribution,
 source details, and the exact files covered by that license.
+
+The embedded Player Animation Library is separately licensed under MIT. Its
+original JAR and license file are preserved inside the Handy Tools JAR.
 
 ## Branches and releases
 

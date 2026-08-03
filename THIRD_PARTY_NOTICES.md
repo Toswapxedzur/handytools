@@ -25,3 +25,17 @@ two material names, filenames were changed to match Handy Tools identifiers:
 These sprites are not covered by Handy Tools' MIT license. Redistribution and
 adaptation of them must comply with CC BY-NC-SA 4.0, including its attribution,
 noncommercial, and share-alike conditions.
+
+## Player Animation Library
+
+Player Animation Library `1.1.5+mc.1.21.1` is embedded as an intact NeoForge
+Jar-in-Jar dependency.
+
+Copyright (c) 2025 ZigyTheBird.
+
+Source: [ZigyTheBird/PlayerAnimationLibrary](https://github.com/ZigyTheBird/PlayerAnimationLibrary).
+
+License: [MIT](https://github.com/ZigyTheBird/PlayerAnimationLibrary/blob/master/LICENSE).
+
+The embedded PAL JAR contains its original `LICENSE` file and its own nested
+runtime dependencies and metadata.

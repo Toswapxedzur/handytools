@@ -7,6 +7,14 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.140'
 }
 
+repositories {
+    mavenCentral()
+    maven {
+        name = 'RedlanceMinecraft'
+        url = uri('https://repo.redlance.org/public')
+    }
+}
+
 version = mod_version
 group = mod_group_id
 
@@ -58,6 +66,17 @@ neoForge {
     }
 }
 
+dependencies {
+    jarJar(implementation("com.zigythebird.playeranim:PlayerAnimationLibNeo:${pal_version}") {
+        transitive = false
+    }) {
+        version {
+            strictly pal_version_range
+            prefer pal_version
+        }
+    }
+}
+
 sourceSets.main.resources {
     srcDir 'src/generated/resources'
 }
@@ -69,6 +88,7 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
             neo_version            : neo_version,
             neo_version_range      : neo_version_range,
             loader_version_range   : loader_version_range,
+            pal_version_range      : pal_version_range,
             mod_id                 : mod_id,
             mod_name               : mod_name,
             mod_license            : mod_license,
@@ -160,8 +180,50 @@ tasks.register('validateHammerAssets') {
     }
 }
 
+tasks.register('validateEmbeddedPal') {
+    group = 'verification'
+    description = 'Validates the embedded Player Animation Library mod and license.'
+    dependsOn tasks.named('jar')
+    inputs.file tasks.named('jar').flatMap { it.archiveFile }
+    inputs.property 'palVersion', pal_version
+
+    doLast {
+        def modJar = tasks.named('jar').get().archiveFile.get().asFile
+        def nestedPath = "META-INF/jarjar/PlayerAnimationLibNeo-${pal_version}.jar"
+
+        new java.util.zip.ZipFile(modJar).withCloseable { outerZip ->
+            def nestedEntry = outerZip.getEntry(nestedPath)
+            if (nestedEntry == null) {
+                throw new GradleException("Missing embedded PAL JAR: ${nestedPath}")
+            }
+
+            def outerMetadata = outerZip.getEntry('META-INF/neoforge.mods.toml')
+            def outerMetadataText = outerZip.getInputStream(outerMetadata).getText('UTF-8')
+            if (!outerMetadataText.contains('modId = "player_animation_library"') ||
+                    !outerMetadataText.contains("versionRange = \"${pal_version_range}\"")) {
+                throw new GradleException('Handy Tools metadata does not require embedded PAL')
+            }
+
+            def nestedFiles = [] as Set
+            new java.util.zip.ZipInputStream(outerZip.getInputStream(nestedEntry)).withCloseable { nestedZip ->
+                java.util.zip.ZipEntry entry
+                while ((entry = nestedZip.nextEntry) != null) {
+                    nestedFiles.add(entry.name)
+                }
+            }
+
+            ['LICENSE', 'META-INF/neoforge.mods.toml', 'META-INF/jarjar/metadata.json'].each { required ->
+                if (!nestedFiles.contains(required)) {
+                    throw new GradleException("Embedded PAL JAR is missing ${required}")
+                }
+            }
+        }
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('validateHammerAssets')
+    dependsOn tasks.named('validateEmbeddedPal')
 }
 
 publishing {

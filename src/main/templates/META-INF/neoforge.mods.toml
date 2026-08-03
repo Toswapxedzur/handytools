@@ -28,6 +28,13 @@ ordering = "NONE"
 side = "BOTH"
 
 [[dependencies."${mod_id}"]]
+modId = "player_animation_library"
+type = "required"
+versionRange = "${pal_version_range}"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies."${mod_id}"]]
 modId = "create"
 type = "optional"
 versionRange = "[6.0.0,)"
