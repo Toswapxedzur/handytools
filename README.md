@@ -9,9 +9,9 @@ Handy Tools is a NeoForge 1.21.1 mod that adds six material hammers:
 - Diamond Hammer
 - Netherite Hammer
 
-Each hammer uses a compact mace-style sprite in inventory, first person,
-dropped-item, item-frame, head, and fixed contexts. Third person uses the full
-3D hammer model at one model pixel per world pixel.
+Each hammer uses an Ex Nihilo: Sequentia hammer sprite in inventory, first
+person, dropped-item, item-frame, head, and fixed contexts. Third person uses
+the full 3D hammer model at one model pixel per world pixel.
 
 Hold right click while targeting a block to begin a focused press. The hammer
 can lock only when the block center is within 1.5 blocks and 60 degrees of the
@@ -32,6 +32,12 @@ and runs without either mod installed.
 ```
 
 The distributable JAR is written to `build/libs/`.
+
+## Asset credits
+
+The six flat hammer item sprites are from Ex Nihilo: Sequentia and are licensed
+separately under CC BY-NC-SA 4.0. See `THIRD_PARTY_NOTICES.md` for attribution,
+source details, and the exact files covered by that license.
 
 ## Branches and releases
 
