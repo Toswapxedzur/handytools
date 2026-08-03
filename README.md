@@ -44,10 +44,17 @@ the stroke, then uses a short matched-velocity ease-out to stop continuously at
 the server-owned impact tick.
 
 The hammer PAL layer moves the body, head, both arms, both legs, and acting-hand
-item together. It mirrors for left-handed and off-hand actions, turns the player
-body toward the captured block center, and receives phase snapshots from the
-server for the acting player and every tracking client. All four animation clips
-share identical seam poses: held -> contact -> overhead -> contact -> held.
+item together. It mirrors for left-handed and off-hand actions. During
+preparation, the visible head and body turn toward the captured block center
+with the same cubic ease as the pose, while the actual first-person yaw and
+pitch remain locked; release reverses that turn. The server sends phase
+snapshots to the acting player and every tracking client, and PAL is explicitly
+reset whenever the authoritative phase changes. All four animation clips share
+identical seam poses: held -> contact -> overhead -> contact -> held.
+
+Release is requested only by Minecraft's release-use callbacks. A transient
+client-side `isUsingItem` value during startup cannot redirect preparation into
+release, so a held action deterministically reaches raise and descent.
 
 Hammer targeting retains the focused-use constraints: the block center must be
 within 1.5 blocks and inside a 60-degree view cone, and its outline bounding-box
