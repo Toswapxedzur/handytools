@@ -1,6 +1,7 @@
 package com.minecart.handytools.client;
 
 import com.minecart.handytools.HandyTools;
+import com.minecart.handytools.network.SyncedToolActionStates;
 import com.minecart.handytools.toolaction.ToolActionManager;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -9,6 +10,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.CalculatePlayerTurnEvent;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.MovementInputUpdateEvent;
@@ -110,5 +112,12 @@ public final class ToolActionClientEvents {
                 && ToolActionManager.isActive(minecraft.player)) {
             event.setCanceled(true);
         }
+    }
+
+    @SubscribeEvent
+    public static void clearSyncedActionsOnLogout(
+            ClientPlayerNetworkEvent.LoggingOut event
+    ) {
+        SyncedToolActionStates.clear();
     }
 }

@@ -13,6 +13,13 @@ repositories {
         name = 'RedlanceMinecraft'
         url = uri('https://repo.redlance.org/public')
     }
+    maven {
+        name = 'Modrinth'
+        url = uri('https://api.modrinth.com/maven')
+        content {
+            includeGroup 'maven.modrinth'
+        }
+    }
 }
 
 version = mod_version
@@ -67,6 +74,15 @@ neoForge {
 }
 
 dependencies {
+    // Development fixtures for validating the optional first-person path.
+    // runtimeOnly keeps both mods out of Handy Tools' published JAR.
+    runtimeOnly(
+            "maven.modrinth:first-person-model:${first_person_dev_version}"
+    )
+    runtimeOnly(
+            "maven.modrinth:not-enough-animations:${not_enough_animations_dev_version}"
+    )
+
     jarJar(implementation("com.zigythebird.playeranim:PlayerAnimationLibNeo:${pal_version}") {
         transitive = false
     }) {
@@ -89,6 +105,7 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
             neo_version_range      : neo_version_range,
             loader_version_range   : loader_version_range,
             pal_version_range      : pal_version_range,
+            first_person_version_range: first_person_version_range,
             mod_id                 : mod_id,
             mod_name               : mod_name,
             mod_license            : mod_license,
@@ -248,6 +265,11 @@ tasks.register('validateEmbeddedPal') {
                     !outerMetadataText.contains("versionRange = \"${pal_version_range}\"")) {
                 throw new GradleException('Handy Tools metadata does not require embedded PAL')
             }
+            if (!outerMetadataText.contains('modId = "firstperson"') ||
+                    !outerMetadataText.contains('type = "optional"') ||
+                    !outerMetadataText.contains("versionRange = \"${first_person_version_range}\"")) {
+                throw new GradleException('Handy Tools metadata does not declare optional FirstPerson compatibility')
+            }
 
             def nestedFiles = [] as Set
             new java.util.zip.ZipInputStream(outerZip.getInputStream(nestedEntry)).withCloseable { nestedZip ->
@@ -266,9 +288,125 @@ tasks.register('validateEmbeddedPal') {
     }
 }
 
+tasks.register('validateHammerAnimation') {
+    group = 'verification'
+    description = 'Validates PAL phase lengths, bones, and continuous endpoints.'
+    notCompatibleWithConfigurationCache('Reads and parses the animation resource directly.')
+    inputs.file 'src/main/resources/assets/handytools/player_animations/hammer.animation.json'
+
+    doLast {
+        def animationFile = file(
+                'src/main/resources/assets/handytools/player_animations/hammer.animation.json'
+        )
+        def animations = new JsonSlurper().parse(animationFile).animations
+        def phases = [
+                hammer_preparation: 0.5,
+                hammer_raise      : 0.7,
+                hammer_descend    : 0.4,
+                hammer_release    : 0.5
+        ]
+        def bones = [
+                'body', 'torso', 'head', 'right_arm', 'left_arm',
+                'right_leg', 'left_leg', 'right_item'
+        ]
+
+        phases.each { name, length ->
+            def animation = animations[name]
+            if (animation == null) {
+                throw new GradleException("Missing PAL animation: ${name}")
+            }
+            if (animation.animation_length != length) {
+                throw new GradleException(
+                        "${name} must last ${length} seconds"
+                )
+            }
+            bones.each { bone ->
+                if (animation.bones[bone] == null) {
+                    throw new GradleException(
+                            "${name} is missing full-body bone ${bone}"
+                    )
+                }
+            }
+        }
+
+        ['hammer_preparation', 'hammer_raise', 'hammer_release'].each { name ->
+            animations[name].bones.each { bone, transforms ->
+                transforms.each { transform, frames ->
+                    def lastTime = frames.keySet().max { it as BigDecimal }
+                    if (frames[lastTime].easing != 'easeinoutcubic') {
+                        throw new GradleException(
+                                "${name} ${bone}.${transform} must ease to rest"
+                        )
+                    }
+                }
+            }
+        }
+
+        animations.hammer_descend.bones.each { bone, transforms ->
+            transforms.each { transform, frames ->
+                def start = frames['0.0']
+                def bridge = frames['0.35']
+                def impact = frames['0.4']
+                if (start == null || bridge?.easing != 'easeincubic'
+                        || impact?.easing != 'easeoutcubic') {
+                    throw new GradleException(
+                            "hammer_descend ${bone}.${transform} must use its " +
+                                    'matched cubic impact bridge'
+                    )
+                }
+                (0..2).each { axis ->
+                    def expected = start.vector[axis] + 0.875 *
+                            (impact.vector[axis] - start.vector[axis])
+                    if (Math.abs(bridge.vector[axis] - expected) > 0.000001) {
+                        throw new GradleException(
+                                "hammer_descend ${bone}.${transform} breaks " +
+                                        'velocity continuity before impact'
+                        )
+                    }
+                }
+            }
+        }
+
+        def firstVector = { animation, bone, transform ->
+            def frames = animation.bones[bone][transform]
+            def time = frames.keySet().min { it as BigDecimal }
+            frames[time].vector
+        }
+        def lastVector = { animation, bone, transform ->
+            def frames = animation.bones[bone][transform]
+            def time = frames.keySet().max { it as BigDecimal }
+            frames[time].vector
+        }
+        def joins = [
+                ['hammer_preparation', 'hammer_raise'],
+                ['hammer_raise', 'hammer_descend'],
+                ['hammer_descend', 'hammer_release'],
+                ['hammer_release', 'hammer_preparation']
+        ]
+
+        joins.each { join ->
+            def before = animations[join[0]]
+            def after = animations[join[1]]
+            bones.each { bone ->
+                before.bones[bone].keySet().each { transform ->
+                    if (after.bones[bone][transform] != null
+                            && lastVector(before, bone, transform)
+                            != firstVector(after, bone, transform)) {
+                        throw new GradleException(
+                                "PAL pose discontinuity at ${join[0]} -> " +
+                                        "${join[1]} for ${bone}.${transform}"
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('validateHammerAssets')
     dependsOn tasks.named('validateEmbeddedPal')
+    dependsOn tasks.named('validateHammerAnimation')
 }
 
 publishing {

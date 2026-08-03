@@ -1,5 +1,6 @@
 package com.minecart.handytools.toolaction;
 
+import com.minecart.handytools.network.ToolActionNetworking;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -61,6 +62,9 @@ public final class ToolActionManager {
                     || !player.level().dimension().equals(active.dimension)
                     || !hasActionItem(player, active)) {
                 ACTIVE_ACTIONS.remove(player);
+                if (!player.level().isClientSide) {
+                    ToolActionNetworking.sendInactive(player);
+                }
                 return;
             }
 
@@ -130,8 +134,31 @@ public final class ToolActionManager {
     public static void cancel(LivingEntity entity) {
         if (entity instanceof Player player) {
             synchronized (ACTIVE_ACTIONS) {
-                ACTIVE_ACTIONS.remove(player);
+                ActiveAction removed = ACTIVE_ACTIONS.remove(player);
+                if (removed != null && !player.level().isClientSide
+                        && !player.isRemoved()) {
+                    ToolActionNetworking.sendInactive(player);
+                }
             }
+        }
+    }
+
+    public static void syncStateTo(
+            net.minecraft.server.level.ServerPlayer receivingPlayer,
+            Player actingPlayer
+    ) {
+        Optional<ToolActionState> state = getState(actingPlayer);
+        if (state.isPresent()) {
+            ToolActionNetworking.sendStateTo(
+                    receivingPlayer,
+                    actingPlayer,
+                    state.get()
+            );
+        } else {
+            ToolActionNetworking.sendInactiveTo(
+                    receivingPlayer,
+                    actingPlayer
+            );
         }
     }
 
@@ -175,6 +202,7 @@ public final class ToolActionManager {
                     context(player, active),
                     active.phase
             );
+            ToolActionNetworking.sendState(player, active.snapshot());
         }
     }
 
@@ -182,6 +210,7 @@ public final class ToolActionManager {
         ACTIVE_ACTIONS.remove(player);
         if (!player.level().isClientSide) {
             active.action.onServerActionFinished(context(player, active));
+            ToolActionNetworking.sendInactive(player);
         }
     }
 
