@@ -68,34 +68,19 @@ public final class ToolActionManager {
                 return;
             }
 
-            if (active.phase != ToolActionPhase.RELEASE
-                    && !player.isUsingItem()) {
-                requestRelease(player, active);
-                if (!ACTIVE_ACTIONS.containsKey(player)) {
-                    return;
+            switch (active.timeline.tick()) {
+                case CONTINUE -> {
                 }
-            }
-
-            active.elapsedTicks++;
-            if (active.elapsedTicks < active.duration()) {
-                return;
-            }
-
-            switch (active.phase) {
-                case PREPARATION -> transition(
-                        player,
-                        active,
-                        active.releaseRequested
-                                ? ToolActionPhase.RELEASE
-                                : ToolActionPhase.OPERATION_RAISE
-                );
-                case OPERATION_RAISE -> transition(
-                        player,
-                        active,
-                        ToolActionPhase.OPERATION_DESCEND
-                );
-                case OPERATION_DESCEND -> completeDescent(player, active);
-                case RELEASE -> finish(player, active);
+                case PHASE_CHANGED -> notifyPhaseStarted(player, active);
+                case IMPACT -> {
+                    if (!player.level().isClientSide) {
+                        active.action.onServerImpact(
+                                context(player, active)
+                        );
+                    }
+                    notifyPhaseStarted(player, active);
+                }
+                case FINISHED -> finish(player, active);
             }
         }
     }
@@ -163,44 +148,15 @@ public final class ToolActionManager {
     }
 
     private static void requestRelease(Player player, ActiveAction active) {
-        if (active.phase == ToolActionPhase.RELEASE) {
-            return;
-        }
-
         // Reach contact first so release always joins at a zero-velocity pose.
-        active.releaseRequested = true;
-    }
-
-    private static void completeDescent(Player player, ActiveAction active) {
-        active.completedCycles++;
-        if (!player.level().isClientSide) {
-            active.action.onServerImpact(context(player, active));
-        }
-
-        transition(
-                player,
-                active,
-                active.releaseRequested
-                        ? ToolActionPhase.RELEASE
-                        : ToolActionPhase.OPERATION_RAISE
-        );
-    }
-
-    private static void transition(
-            Player player,
-            ActiveAction active,
-            ToolActionPhase phase
-    ) {
-        active.phase = phase;
-        active.elapsedTicks = 0;
-        notifyPhaseStarted(player, active);
+        active.timeline.requestRelease();
     }
 
     private static void notifyPhaseStarted(Player player, ActiveAction active) {
         if (!player.level().isClientSide) {
             active.action.onServerPhaseStarted(
                     context(player, active),
-                    active.phase
+                    active.timeline.phase()
             );
             ToolActionNetworking.sendState(player, active.snapshot());
         }
@@ -227,7 +183,7 @@ public final class ToolActionManager {
                 active.hand,
                 player.getItemInHand(active.hand),
                 active.target,
-                active.completedCycles
+                active.timeline.completedCycles()
         );
     }
 
@@ -237,11 +193,7 @@ public final class ToolActionManager {
         private final ResourceKey<Level> dimension;
         private final InteractionHand hand;
         private final ToolActionTarget target;
-        private final ToolActionDurations durations;
-        private ToolActionPhase phase = ToolActionPhase.PREPARATION;
-        private int elapsedTicks;
-        private int completedCycles;
-        private boolean releaseRequested;
+        private final ToolActionTimeline timeline;
 
         private ActiveAction(
                 PhasedToolAction action,
@@ -256,20 +208,16 @@ public final class ToolActionManager {
             this.dimension = dimension;
             this.hand = hand;
             this.target = target;
-            this.durations = durations;
-        }
-
-        private int duration() {
-            return durations.ticksFor(phase);
+            this.timeline = new ToolActionTimeline(durations);
         }
 
         private ToolActionState snapshot() {
             return new ToolActionState(
-                    phase,
-                    elapsedTicks,
-                    duration(),
-                    completedCycles,
-                    releaseRequested,
+                    timeline.phase(),
+                    timeline.elapsedTicks(),
+                    timeline.duration(),
+                    timeline.completedCycles(),
+                    timeline.releaseRequested(),
                     hand,
                     target
             );

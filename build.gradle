@@ -83,6 +83,10 @@ dependencies {
             "maven.modrinth:not-enough-animations:${not_enough_animations_dev_version}"
     )
 
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
     jarJar(implementation("com.zigythebird.playeranim:PlayerAnimationLibNeo:${pal_version}") {
         transitive = false
     }) {
@@ -91,6 +95,10 @@ dependencies {
             prefer pal_version
         }
     }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }
 
 sourceSets.main.resources {

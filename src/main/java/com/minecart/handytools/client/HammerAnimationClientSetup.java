@@ -79,6 +79,7 @@ public final class HammerAnimationClientSetup {
         private final Map<ToolActionPhase, CachedAnimation> animationCache =
                 new EnumMap<>(ToolActionPhase.class);
         private boolean acting;
+        private ToolActionPhase activePhase;
 
         private HammerStateHandler(
                 AbstractClientPlayer player,
@@ -99,6 +100,7 @@ public final class HammerAnimationClientSetup {
                     controller.forceAnimationReset();
                 }
                 acting = false;
+                activePhase = null;
                 mirror.enabled = false;
                 return PlayState.STOP;
             }
@@ -106,6 +108,10 @@ public final class HammerAnimationClientSetup {
             ActionView action = view.get();
             acting = true;
             mirror.enabled = actionArm(action.hand()) == HumanoidArm.LEFT;
+            if (action.phase() != activePhase) {
+                controller.forceAnimationReset();
+                activePhase = action.phase();
+            }
 
             RawAnimation animation = animationFor(action.phase());
             if (animation == null) {
