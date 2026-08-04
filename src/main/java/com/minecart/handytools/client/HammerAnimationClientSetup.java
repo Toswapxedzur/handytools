@@ -114,8 +114,14 @@ public final class HammerAnimationClientSetup {
             }
             return animationSetter.setAnimation(
                     animation,
-                    action.elapsedTicks()
+                    animationElapsedTicks(action)
             );
+        }
+
+        private int animationElapsedTicks(ActionView action) {
+            return action.phase() == ToolActionPhase.OPERATION_DESCEND
+                    ? HammerItem.OPERATION_RAISE_TICKS + action.elapsedTicks()
+                    : action.elapsedTicks();
         }
 
         private Optional<ActionView> actionView() {
@@ -149,10 +155,16 @@ public final class HammerAnimationClientSetup {
         }
 
         private RawAnimation animationFor(ToolActionPhase phase) {
-            ResourceLocation animationId = HandyTools.id(switch (phase) {
+            ToolActionPhase animationPhase =
+                    phase == ToolActionPhase.OPERATION_DESCEND
+                            ? ToolActionPhase.OPERATION_RAISE
+                            : phase;
+            ResourceLocation animationId = HandyTools.id(switch (animationPhase) {
                 case PREPARATION -> "hammer_preparation";
-                case OPERATION_RAISE -> "hammer_raise";
-                case OPERATION_DESCEND -> "hammer_descend";
+                case OPERATION_RAISE -> "hammer_operation";
+                case OPERATION_DESCEND -> throw new IllegalStateException(
+                        "Descend must share the operation animation"
+                );
                 case RELEASE -> "hammer_release";
             });
             Animation source = PlayerAnimResources.getAnimation(animationId);
@@ -160,16 +172,20 @@ public final class HammerAnimationClientSetup {
                 return null;
             }
 
-            CachedAnimation cached = animationCache.get(phase);
+            CachedAnimation cached = animationCache.get(animationPhase);
             if (cached == null || cached.source() != source) {
+                Animation.LoopType loopType =
+                        animationPhase == ToolActionPhase.OPERATION_RAISE
+                                ? Animation.LoopType.LOOP
+                                : Animation.LoopType.HOLD_ON_LAST_FRAME;
                 cached = new CachedAnimation(
                         source,
                         RawAnimation.begin().then(
                                 source,
-                                Animation.LoopType.HOLD_ON_LAST_FRAME
+                                loopType
                         )
                 );
-                animationCache.put(phase, cached);
+                animationCache.put(animationPhase, cached);
             }
             return cached.raw();
         }

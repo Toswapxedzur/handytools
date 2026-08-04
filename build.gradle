@@ -298,7 +298,7 @@ tasks.register('validateEmbeddedPal') {
 
 tasks.register('validateHammerAnimation') {
     group = 'verification'
-    description = 'Validates PAL phase lengths, bones, and continuous endpoints.'
+    description = 'Validates PAL timing, one-hand posing, and continuous motion.'
     notCompatibleWithConfigurationCache('Reads and parses the animation resource directly.')
     inputs.file 'src/main/resources/assets/handytools/player_animations/hammer.animation.json'
 
@@ -307,10 +307,9 @@ tasks.register('validateHammerAnimation') {
                 'src/main/resources/assets/handytools/player_animations/hammer.animation.json'
         )
         def animations = new JsonSlurper().parse(animationFile).animations
-        def phases = [
+        def clips = [
                 hammer_preparation: 0.5,
-                hammer_raise      : 0.7,
-                hammer_descend    : 0.4,
+                hammer_operation  : 1.1,
                 hammer_release    : 0.5
         ]
         def bones = [
@@ -318,7 +317,7 @@ tasks.register('validateHammerAnimation') {
                 'right_leg', 'left_leg', 'right_item'
         ]
 
-        phases.each { name, length ->
+        clips.each { name, length ->
             def animation = animations[name]
             if (animation == null) {
                 throw new GradleException("Missing PAL animation: ${name}")
@@ -337,7 +336,7 @@ tasks.register('validateHammerAnimation') {
             }
         }
 
-        phases.keySet().each { name ->
+        clips.keySet().each { name ->
             if (animations[name].bones.left_arm != null) {
                 throw new GradleException(
                         "${name} must leave the free arm under vanilla control"
@@ -377,27 +376,75 @@ tasks.register('validateHammerAnimation') {
             }
         }
 
-        animations.hammer_raise.bones.each { bone, transforms ->
-            transforms.each { transform, frames ->
-                def lastTime = frames.keySet().max { it as BigDecimal }
-                if (frames[lastTime].easing != 'linear') {
+        def expectedOperationTimes = [
+                '0.0', '0.05', '0.65', '0.7', '1.05', '1.1'
+        ] as Set
+        def expectedOperationEasing = [
+                '0.05': 'easeincubic',
+                '0.65': 'linear',
+                '0.7' : 'easeoutcubic',
+                '1.05': 'easeincubic',
+                '1.1' : 'easeoutcubic'
+        ]
+        def assertFraction = {
+            String bone,
+            String transform,
+            String time,
+            def actual,
+            def start,
+            def end,
+            double fraction ->
+            (0..2).each { axis ->
+                def expected = start[axis] + fraction *
+                        (end[axis] - start[axis])
+                if (Math.abs(actual[axis] - expected) > 0.000001) {
                     throw new GradleException(
-                            "hammer_raise ${bone}.${transform} must be linear"
+                            "hammer_operation ${bone}.${transform} at ${time} " +
+                                    'breaks velocity continuity'
                     )
                 }
             }
         }
 
-        animations.hammer_descend.bones.each { bone, transforms ->
+        animations.hammer_operation.bones.each { bone, transforms ->
             transforms.each { transform, frames ->
                 def start = frames['0.0']
-                def impact = frames['0.4']
-                if (start == null || frames.size() != 2
-                        || impact?.easing != 'easeincubic') {
+                def launchBridge = frames['0.05']
+                def linearBridge = frames['0.65']
+                def raised = frames['0.7']
+                def impactBridge = frames['1.05']
+                def impact = frames['1.1']
+                if ((frames.keySet() as Set) != expectedOperationTimes) {
                     throw new GradleException(
-                            "hammer_descend ${bone}.${transform} must be one " +
-                                    'uninterrupted cubic slam'
+                            "hammer_operation ${bone}.${transform} must use " +
+                                    'the six continuous-loop keyframes'
+                    )
+                }
+                expectedOperationEasing.each { time, easing ->
+                    if (frames[time].easing != easing) {
+                        throw new GradleException(
+                                "hammer_operation ${bone}.${transform} at " +
+                                        "${time} must use ${easing}"
                         )
+                    }
+                }
+                assertFraction(
+                        bone, transform, '0.05', launchBridge.vector,
+                        start.vector, raised.vector, 1.0 / 38.0
+                )
+                assertFraction(
+                        bone, transform, '0.65', linearBridge.vector,
+                        start.vector, raised.vector, 37.0 / 38.0
+                )
+                assertFraction(
+                        bone, transform, '1.05', impactBridge.vector,
+                        raised.vector, impact.vector, 0.875
+                )
+                if (impact.vector != start.vector) {
+                    throw new GradleException(
+                            "hammer_operation ${bone}.${transform} does not " +
+                                    'close its loop at contact'
+                    )
                 }
             }
         }
@@ -413,11 +460,9 @@ tasks.register('validateHammerAnimation') {
             frames[time].vector
         }
         def joins = [
-                ['hammer_preparation', 'hammer_raise'],
+                ['hammer_preparation', 'hammer_operation'],
                 ['hammer_preparation', 'hammer_release'],
-                ['hammer_raise', 'hammer_descend'],
-                ['hammer_descend', 'hammer_raise'],
-                ['hammer_descend', 'hammer_release'],
+                ['hammer_operation', 'hammer_release'],
                 ['hammer_release', 'hammer_preparation']
         ]
 

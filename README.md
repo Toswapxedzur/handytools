@@ -39,8 +39,10 @@ Releasing during preparation finishes the move to the contact pose without
 starting a stroke; releasing during a stroke finishes that stroke. Release then
 starts from the exact contact endpoint, so the tool never jumps between phases.
 PAL interpolates the authored poses every render frame: preparation and release
-use eased cubic motion, the complete raise is linear, and the complete downward
-slam uses cubic acceleration into the server-owned impact tick.
+use eased cubic motion. The raise is linear through its middle twelve ticks,
+with one-tick cubic velocity bridges at contact and overhead. The downward slam
+accelerates cubically, then uses a matched cubic stop at the server-owned impact
+tick.
 
 The hammer PAL layer moves only the acting arm and its item. The torso, head,
 and both legs make a restrained supporting weight shift; the free arm remains
@@ -50,8 +52,11 @@ center with the same cubic ease as the pose, while the actual first-person yaw
 and pitch remain locked; release reverses that turn. The local player animation
 uses the local copy of the authoritative phase clock, avoiding phase-packet
 rewinds, while tracking clients use server snapshots. PAL changes between the
-four clips without an additional hard phase reset, and every clip shares exact
-seam poses: held -> contact -> overhead -> contact -> held.
+preparation, operation, and release clips without an additional hard reset. The
+two server-owned operation phases share one 22-tick looping clip, so PAL never
+reloads animation at overhead or between strokes. Its position and velocity are
+continuous at contact, overhead, and the loop boundary: held -> contact ->
+overhead -> contact -> held.
 
 Release is requested only by Minecraft's release-use callbacks. A transient
 client-side `isUsingItem` value during startup cannot redirect preparation into

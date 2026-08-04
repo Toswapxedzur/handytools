@@ -30,13 +30,14 @@ public final class HammerItem extends Item implements PhasedToolAction {
     public static final double MAX_TARGET_DISTANCE = 1.5D;
     public static final double MIN_TARGET_TOP_ABOVE_FEET = 0.5D;
     public static final double MAX_TARGET_TOP_ABOVE_FEET = 1.5D;
+    public static final int OPERATION_RAISE_TICKS = 14;
 
     private static final int MAX_USE_DURATION = 72_000;
     private static final double MAX_TARGET_DISTANCE_SQUARED =
             MAX_TARGET_DISTANCE * MAX_TARGET_DISTANCE;
     private static final double MIN_VIEW_DOT = 0.5D;
     private static final ToolActionDurations ACTION_DURATIONS =
-            new ToolActionDurations(10, 14, 8, 10);
+            new ToolActionDurations(10, OPERATION_RAISE_TICKS, 8, 10);
 
     public HammerItem(Properties properties) {
         super(properties);
