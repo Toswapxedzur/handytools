@@ -2,11 +2,13 @@ package com.minecart.handytools;
 
 import com.minecart.handytools.toolaction.PhasedToolAction;
 import com.minecart.handytools.toolaction.ToolActionManager;
+import com.minecart.handytools.toolaction.ToolActionState;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -153,8 +155,10 @@ public final class ToolActionGameplayEvents {
         player.xRotO = state.xRot();
         player.setYHeadRot(state.headYRot());
         player.yHeadRotO = state.headYRot();
-        player.yBodyRot = state.bodyYRot();
-        player.yBodyRotO = state.bodyYRot();
+        state.bodyFacing().apply(
+                player,
+                ToolActionManager.getState(player).orElse(null)
+        );
         player.fallDistance = state.fallDistance();
     }
 
@@ -164,21 +168,72 @@ public final class ToolActionGameplayEvents {
             float yRot,
             float xRot,
             float headYRot,
-            float bodyYRot,
+            BodyFacing bodyFacing,
             int selectedSlot,
             float fallDistance
     ) {
         private static LockedPlayerState capture(Player player) {
+            float targetYRot = ToolActionManager.getState(player)
+                    .map(state -> yawToward(
+                            player.position(),
+                            state.target().blockCenter()
+                    ))
+                    .orElse(player.yBodyRot);
             return new LockedPlayerState(
                     player.level().dimension(),
                     player.position(),
                     player.getYRot(),
                     player.getXRot(),
                     player.yHeadRot,
-                    player.yBodyRot,
+                    new BodyFacing(player.yBodyRot, targetYRot),
                     player.getInventory().selected,
                     player.fallDistance
             );
+        }
+
+        private static float yawToward(Vec3 origin, Vec3 target) {
+            Vec3 offset = target.subtract(origin);
+            return (float) (Mth.atan2(offset.z, offset.x)
+                    * Mth.RAD_TO_DEG) - 90.0F;
+        }
+    }
+
+    private static final class BodyFacing {
+        private final float startYRot;
+        private final float targetYRot;
+        private float lastYRot;
+
+        private BodyFacing(float startYRot, float targetYRot) {
+            this.startYRot = startYRot;
+            this.targetYRot = targetYRot;
+            this.lastYRot = startYRot;
+        }
+
+        private void apply(Player player, ToolActionState state) {
+            float nextYRot = rotationFor(state);
+            player.yBodyRotO = lastYRot;
+            player.yBodyRot = nextYRot;
+            lastYRot = nextYRot;
+        }
+
+        private float rotationFor(ToolActionState state) {
+            if (state == null) {
+                return lastYRot;
+            }
+            float progress = state.cubicEaseInOutProgress(0.0F);
+            return switch (state.phase()) {
+                case PREPARATION -> Mth.rotLerp(
+                        progress,
+                        startYRot,
+                        targetYRot
+                );
+                case OPERATION_RAISE, OPERATION_DESCEND -> targetYRot;
+                case RELEASE -> Mth.rotLerp(
+                        progress,
+                        targetYRot,
+                        startYRot
+                );
+            };
         }
     }
 }
