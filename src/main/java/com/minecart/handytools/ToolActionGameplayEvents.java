@@ -2,13 +2,11 @@ package com.minecart.handytools;
 
 import com.minecart.handytools.toolaction.PhasedToolAction;
 import com.minecart.handytools.toolaction.ToolActionManager;
-import com.minecart.handytools.toolaction.ToolActionState;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -153,14 +151,10 @@ public final class ToolActionGameplayEvents {
         player.setXRot(state.xRot());
         player.yRotO = state.yRot();
         player.xRotO = state.xRot();
-        ToolActionState actionState = ToolActionManager.getState(player)
-                .orElse(null);
-        float previousHeadYRot = player.yHeadRot;
-        float previousBodyYRot = player.yBodyRot;
-        player.setYHeadRot(state.headYRotFor(actionState));
-        player.yHeadRotO = previousHeadYRot;
-        player.yBodyRot = state.bodyYRotFor(actionState);
-        player.yBodyRotO = previousBodyYRot;
+        player.setYHeadRot(state.headYRot());
+        player.yHeadRotO = state.headYRot();
+        player.yBodyRot = state.bodyYRot();
+        player.yBodyRotO = state.bodyYRot();
         player.fallDistance = state.fallDistance();
     }
 
@@ -169,19 +163,12 @@ public final class ToolActionGameplayEvents {
             Vec3 position,
             float yRot,
             float xRot,
-            float startHeadYRot,
-            float startBodyYRot,
-            float targetYRot,
+            float headYRot,
+            float bodyYRot,
             int selectedSlot,
             float fallDistance
     ) {
         private static LockedPlayerState capture(Player player) {
-            float targetYRot = ToolActionManager.getState(player)
-                    .map(state -> yawToward(
-                            player.position(),
-                            state.target().blockCenter()
-                    ))
-                    .orElse(player.yBodyRot);
             return new LockedPlayerState(
                     player.level().dimension(),
                     player.position(),
@@ -189,47 +176,9 @@ public final class ToolActionGameplayEvents {
                     player.getXRot(),
                     player.yHeadRot,
                     player.yBodyRot,
-                    targetYRot,
                     player.getInventory().selected,
                     player.fallDistance
             );
-        }
-
-        private float headYRotFor(ToolActionState state) {
-            return facingYRotFor(state, startHeadYRot);
-        }
-
-        private float bodyYRotFor(ToolActionState state) {
-            return facingYRotFor(state, startBodyYRot);
-        }
-
-        private float facingYRotFor(
-                ToolActionState state,
-                float startYRot
-        ) {
-            if (state == null) {
-                return targetYRot;
-            }
-            float progress = state.cubicEaseInOutProgress(0.0F);
-            return switch (state.phase()) {
-                case PREPARATION -> Mth.rotLerp(
-                        progress,
-                        startYRot,
-                        targetYRot
-                );
-                case OPERATION_RAISE, OPERATION_DESCEND -> targetYRot;
-                case RELEASE -> Mth.rotLerp(
-                        progress,
-                        targetYRot,
-                        startYRot
-                );
-            };
-        }
-
-        private static float yawToward(Vec3 origin, Vec3 target) {
-            Vec3 offset = target.subtract(origin);
-            return (float) (Mth.atan2(offset.z, offset.x)
-                    * Mth.RAD_TO_DEG) - 90.0F;
         }
     }
 }

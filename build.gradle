@@ -298,7 +298,7 @@ tasks.register('validateEmbeddedPal') {
 
 tasks.register('validateHammerAnimation') {
     group = 'verification'
-    description = 'Validates PAL timing, one-hand posing, and continuous motion.'
+    description = 'Validates PAL timing, stationary-body posing, and continuous motion.'
     notCompatibleWithConfigurationCache('Reads and parses the animation resource directly.')
     inputs.file 'src/main/resources/assets/handytools/player_animations/hammer.animation.json'
 
@@ -313,8 +313,7 @@ tasks.register('validateHammerAnimation') {
                 hammer_release    : 0.5
         ]
         def bones = [
-                'body', 'torso', 'head', 'right_arm',
-                'right_leg', 'left_leg', 'right_item'
+                'right_arm', 'right_leg', 'left_leg', 'right_item'
         ]
 
         clips.each { name, length ->
@@ -336,22 +335,18 @@ tasks.register('validateHammerAnimation') {
             }
         }
 
+        def stationaryBones = ['body', 'torso', 'head', 'left_arm']
         clips.keySet().each { name ->
-            if (animations[name].bones.left_arm != null) {
-                throw new GradleException(
-                        "${name} must leave the free arm under vanilla control"
-                )
+            stationaryBones.each { bone ->
+                if (animations[name].bones[bone] != null) {
+                    throw new GradleException(
+                            "${name} must leave ${bone} under vanilla control"
+                    )
+                }
             }
         }
 
         animations.each { name, animation ->
-            animation.bones.body.position.each { time, frame ->
-                if (frame.vector.any { Math.abs(it) > 0.75 }) {
-                    throw new GradleException(
-                            "${name} body translation exceeds restrained weight shift"
-                    )
-                }
-            }
             ['right_leg', 'left_leg'].each { bone ->
                 animation.bones[bone].rotation.each { time, frame ->
                     if (frame.vector.any { Math.abs(it) > 4.0 }) {

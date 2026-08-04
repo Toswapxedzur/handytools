@@ -44,15 +44,14 @@ with one-tick cubic velocity bridges at contact and overhead. The downward slam
 accelerates cubically, then uses a matched cubic stop at the server-owned impact
 tick.
 
-The hammer PAL layer moves only the acting arm and its item. The torso, head,
-and both legs make a restrained supporting weight shift; the free arm remains
-under vanilla control. The pose mirrors for left-handed and off-hand actions.
-During preparation, the visible head and body turn toward the captured block
-center with the same cubic ease as the pose, while the actual first-person yaw
-and pitch remain locked; release reverses that turn. The local player animation
-uses the local copy of the authoritative phase clock, avoiding phase-packet
-rewinds, while tracking clients use server snapshots. PAL changes between the
-preparation, operation, and release clips without an additional hard reset. The
+The hammer PAL layer moves only the acting arm, its item, and both legs. Leg
+motion is limited to a restrained supporting weight shift. The free arm, root
+body, torso, and head have no hammer keyframes, and the gameplay lock freezes
+the captured head and body rotations for the complete action. The pose mirrors
+for left-handed and off-hand actions. The local player animation uses the local
+copy of the authoritative phase clock, avoiding phase-packet rewinds, while
+tracking clients use server snapshots. PAL changes between the preparation,
+operation, and release clips without an additional hard reset. The
 two server-owned operation phases share one 22-tick looping clip, so PAL never
 reloads animation at overhead or between strokes. Its position and velocity are
 continuous at contact, overhead, and the loop boundary: held -> contact ->
