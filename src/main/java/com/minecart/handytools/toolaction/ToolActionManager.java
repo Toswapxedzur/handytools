@@ -15,10 +15,22 @@ import net.minecraft.world.level.Level;
 
 /** Owns the shared phased-action state machine for all compatible tools. */
 public final class ToolActionManager {
-    private static final Map<Player, ActiveAction> ACTIVE_ACTIONS =
+    // Minecraft's Entity#equals and Entity#hashCode compare the entity id, not
+    // object identity. In singleplayer (and a LAN host) the client LocalPlayer
+    // and the integrated-server ServerPlayer share one id inside one JVM, so
+    // they are equal keys. State is therefore partitioned by logical side; a
+    // single shared map would have one action ticked and mutated from both the
+    // client and server thread (double-speed timeline, raced fields).
+    private static final Map<Player, ActiveAction> CLIENT_ACTIONS =
+            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Player, ActiveAction> SERVER_ACTIONS =
             Collections.synchronizedMap(new WeakHashMap<>());
 
     private ToolActionManager() {
+    }
+
+    private static Map<Player, ActiveAction> actions(Player player) {
+        return player.level().isClientSide ? CLIENT_ACTIONS : SERVER_ACTIONS;
     }
 
     public static boolean start(
@@ -27,8 +39,9 @@ public final class ToolActionManager {
             PhasedToolAction action,
             ToolActionTarget target
     ) {
-        synchronized (ACTIVE_ACTIONS) {
-            if (ACTIVE_ACTIONS.containsKey(player)) {
+        Map<Player, ActiveAction> actions = actions(player);
+        synchronized (actions) {
+            if (actions.containsKey(player)) {
                 return false;
             }
 
@@ -45,26 +58,26 @@ public final class ToolActionManager {
                     target,
                     action.actionDurations(stack)
             );
-            ACTIVE_ACTIONS.put(player, active);
+            actions.put(player, active);
             notifyPhaseStarted(player, active);
             return true;
         }
     }
 
     public static void tick(Player player) {
-        synchronized (ACTIVE_ACTIONS) {
-            ActiveAction active = ACTIVE_ACTIONS.get(player);
+        Map<Player, ActiveAction> actions = actions(player);
+        synchronized (actions) {
+            ActiveAction active = actions.get(player);
             if (active == null) {
                 return;
             }
 
             if (player.isRemoved()
+                    || player.isDeadOrDying()
                     || !player.level().dimension().equals(active.dimension)
                     || !hasActionItem(player, active)) {
-                ACTIVE_ACTIONS.remove(player);
-                if (!player.level().isClientSide) {
-                    ToolActionNetworking.sendInactive(player);
-                }
+                actions.remove(player);
+                endServerSide(player, active);
                 return;
             }
 
@@ -90,8 +103,9 @@ public final class ToolActionManager {
             return;
         }
 
-        synchronized (ACTIVE_ACTIONS) {
-            ActiveAction active = ACTIVE_ACTIONS.get(player);
+        Map<Player, ActiveAction> actions = actions(player);
+        synchronized (actions) {
+            ActiveAction active = actions.get(player);
             if (active != null) {
                 requestRelease(player, active);
             }
@@ -100,7 +114,7 @@ public final class ToolActionManager {
 
     public static boolean isActive(LivingEntity entity) {
         return entity instanceof Player player
-                && ACTIVE_ACTIONS.containsKey(player);
+                && actions(player).containsKey(player);
     }
 
     public static Optional<ToolActionState> getState(LivingEntity entity) {
@@ -108,8 +122,9 @@ public final class ToolActionManager {
             return Optional.empty();
         }
 
-        synchronized (ACTIVE_ACTIONS) {
-            ActiveAction active = ACTIVE_ACTIONS.get(player);
+        Map<Player, ActiveAction> actions = actions(player);
+        synchronized (actions) {
+            ActiveAction active = actions.get(player);
             return active == null
                     ? Optional.empty()
                     : Optional.of(active.snapshot());
@@ -117,13 +132,15 @@ public final class ToolActionManager {
     }
 
     public static void cancel(LivingEntity entity) {
-        if (entity instanceof Player player) {
-            synchronized (ACTIVE_ACTIONS) {
-                ActiveAction removed = ACTIVE_ACTIONS.remove(player);
-                if (removed != null && !player.level().isClientSide
-                        && !player.isRemoved()) {
-                    ToolActionNetworking.sendInactive(player);
-                }
+        if (!(entity instanceof Player player)) {
+            return;
+        }
+
+        Map<Player, ActiveAction> actions = actions(player);
+        synchronized (actions) {
+            ActiveAction removed = actions.remove(player);
+            if (removed != null) {
+                endServerSide(player, removed);
             }
         }
     }
@@ -148,8 +165,12 @@ public final class ToolActionManager {
     }
 
     private static void requestRelease(Player player, ActiveAction active) {
-        // Reach contact first so release always joins at a zero-velocity pose.
-        active.timeline.requestRelease();
+        // A pre-apex release transitions straight to RELEASE; broadcast it so
+        // the immediate return is server-authoritative and synced to trackers.
+        // A past-apex release only flags; the descend finishes and fires impact.
+        if (active.timeline.requestRelease()) {
+            notifyPhaseStarted(player, active);
+        }
     }
 
     private static void notifyPhaseStarted(Player player, ActiveAction active) {
@@ -163,9 +184,22 @@ public final class ToolActionManager {
     }
 
     private static void finish(Player player, ActiveAction active) {
-        ACTIVE_ACTIONS.remove(player);
-        if (!player.level().isClientSide) {
-            active.action.onServerActionFinished(context(player, active));
+        actions(player).remove(player);
+        endServerSide(player, active);
+    }
+
+    /**
+     * Runs the terminal teardown for any reason the action ends (normal
+     * release, cancel, item swap, dimension change, or death). The action has
+     * already been removed from its map. Only the server owns gameplay effects
+     * and the network broadcast; the client just stops ticking locally.
+     */
+    private static void endServerSide(Player player, ActiveAction active) {
+        if (player.level().isClientSide) {
+            return;
+        }
+        active.action.onServerActionFinished(context(player, active));
+        if (!player.isRemoved()) {
             ToolActionNetworking.sendInactive(player);
         }
     }

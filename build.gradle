@@ -335,7 +335,9 @@ tasks.register('validateHammerAnimation') {
             }
         }
 
-        def stationaryBones = ['body', 'torso', 'head', 'left_arm']
+        // 'torso' and 'head' are now driven by the hammer's body-drag; the
+        // whole-body root ('body') and the free arm ('left_arm') stay vanilla.
+        def stationaryBones = ['body', 'left_arm']
         clips.keySet().each { name ->
             stationaryBones.each { bone ->
                 if (animations[name].bones[bone] != null) {

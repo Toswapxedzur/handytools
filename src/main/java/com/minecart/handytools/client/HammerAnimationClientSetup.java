@@ -11,8 +11,10 @@ import com.zigythebird.playeranim.api.PlayerAnimationFactory;
 import com.zigythebird.playeranimcore.animation.Animation;
 import com.zigythebird.playeranimcore.animation.AnimationController;
 import com.zigythebird.playeranimcore.animation.RawAnimation;
+import com.zigythebird.playeranimcore.animation.layered.modifier.AbstractFadeModifier;
 import com.zigythebird.playeranimcore.animation.layered.modifier.MirrorModifier;
 import com.zigythebird.playeranimcore.api.firstPerson.FirstPersonMode;
+import com.zigythebird.playeranimcore.easing.EasingType;
 import com.zigythebird.playeranimcore.enums.PlayState;
 import java.util.EnumMap;
 import java.util.Map;
@@ -75,11 +77,17 @@ public final class HammerAnimationClientSetup {
     }
 
     private static final class HammerStateHandler {
+        // Fade length for the return-to-rest; must be <= releaseTicks (10) so
+        // the fade finishes before the action ends and the controller resets.
+        private static final int RETURN_FADE_TICKS = 8;
+
         private final AbstractClientPlayer player;
         private final MirrorModifier mirror;
         private final Map<ToolActionPhase, CachedAnimation> animationCache =
                 new EnumMap<>(ToolActionPhase.class);
         private boolean acting;
+        private boolean returnFadeStarted;
+        private RawAnimation restCache;
 
         private HammerStateHandler(
                 AbstractClientPlayer player,
@@ -97,10 +105,12 @@ public final class HammerAnimationClientSetup {
             Optional<ActionView> view = actionView();
             if (view.isEmpty()) {
                 if (acting) {
+                    controller.stopTriggeredAnimation();
                     controller.forceAnimationReset();
                 }
                 acting = false;
                 mirror.enabled = false;
+                returnFadeStarted = false;
                 return PlayState.STOP;
             }
 
@@ -108,6 +118,28 @@ public final class HammerAnimationClientSetup {
             acting = true;
             mirror.enabled = actionArm(action.hand()) == HumanoidArm.LEFT;
 
+            if (action.phase() == ToolActionPhase.RELEASE) {
+                // Return: snapshot the live (possibly deeply body-dragged) pose
+                // and fade it to the neutral rest clip. replaceAnimationWithFade
+                // suspends this scrubbing handler until the fade self-removes,
+                // so fire it exactly once and yield the pose to the trigger.
+                if (!returnFadeStarted) {
+                    RawAnimation rest = restAnimation();
+                    if (rest != null) {
+                        controller.replaceAnimationWithFade(
+                                AbstractFadeModifier.standardFadeIn(
+                                        RETURN_FADE_TICKS,
+                                        EasingType.EASE_IN_OUT_SINE
+                                ),
+                                rest
+                        );
+                    }
+                    returnFadeStarted = true;
+                }
+                return PlayState.CONTINUE;
+            }
+
+            returnFadeStarted = false;
             RawAnimation animation = animationFor(action.phase());
             if (animation == null) {
                 return PlayState.STOP;
@@ -116,6 +148,21 @@ public final class HammerAnimationClientSetup {
                     animation,
                     animationElapsedTicks(action)
             );
+        }
+
+        private RawAnimation restAnimation() {
+            if (restCache == null) {
+                Animation source = PlayerAnimResources.getAnimation(
+                        HandyTools.id("hammer_rest")
+                );
+                if (source == null) {
+                    return null;
+                }
+                restCache = RawAnimation.begin().then(
+                        source, Animation.LoopType.PLAY_ONCE
+                );
+            }
+            return restCache;
         }
 
         private int animationElapsedTicks(ActionView action) {
