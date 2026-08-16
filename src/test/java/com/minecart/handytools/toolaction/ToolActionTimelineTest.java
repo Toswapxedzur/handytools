@@ -1,6 +1,8 @@
 package com.minecart.handytools.toolaction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -24,26 +26,42 @@ final class ToolActionTimelineTest {
     }
 
     @Test
-    void releaseDuringOperationFinishesTheCurrentStroke() {
+    void releaseDuringRaiseReturnsImmediately() {
         ToolActionTimeline timeline = new ToolActionTimeline(DURATIONS);
-        tick(timeline, 10);
+        tick(timeline, 10);   // PREPARATION -> OPERATION_RAISE
         tick(timeline, 1);
-        timeline.requestRelease();
+        assertEquals(ToolActionPhase.OPERATION_RAISE, timeline.phase());
 
-        tick(timeline, 13);
-        assertEquals(ToolActionPhase.OPERATION_DESCEND, timeline.phase());
-        assertEquals(ToolActionTimeline.TickResult.IMPACT, tick(timeline, 8));
+        assertTrue(timeline.requestRelease());   // before the apex -> immediate RELEASE
         assertEquals(ToolActionPhase.RELEASE, timeline.phase());
+        assertEquals(0, timeline.completedCycles());
         assertEquals(ToolActionTimeline.TickResult.FINISHED, tick(timeline, 10));
     }
 
     @Test
-    void releaseDuringPreparationSkipsOperationAfterPreparationCompletes() {
+    void releaseDuringDescendFinishesTheSlam() {
+        ToolActionTimeline timeline = new ToolActionTimeline(DURATIONS);
+        tick(timeline, 10);   // -> OPERATION_RAISE
+        tick(timeline, 14);   // -> OPERATION_DESCEND
+        tick(timeline, 3);
+        assertEquals(ToolActionPhase.OPERATION_DESCEND, timeline.phase());
+
+        assertFalse(timeline.requestRelease());  // past the apex -> flag only, no phase change now
+        assertEquals(ToolActionPhase.OPERATION_DESCEND, timeline.phase());
+
+        assertEquals(ToolActionTimeline.TickResult.IMPACT, tick(timeline, 5));  // slam still lands
+        assertEquals(ToolActionPhase.RELEASE, timeline.phase());
+        assertEquals(1, timeline.completedCycles());
+        assertEquals(ToolActionTimeline.TickResult.FINISHED, tick(timeline, 10));
+    }
+
+    @Test
+    void releaseDuringPreparationReturnsImmediately() {
         ToolActionTimeline timeline = new ToolActionTimeline(DURATIONS);
         tick(timeline, 1);
-        timeline.requestRelease();
+        assertEquals(ToolActionPhase.PREPARATION, timeline.phase());
 
-        tick(timeline, 9);
+        assertTrue(timeline.requestRelease());   // before any stroke -> immediate RELEASE
         assertEquals(ToolActionPhase.RELEASE, timeline.phase());
         assertEquals(0, timeline.completedCycles());
     }

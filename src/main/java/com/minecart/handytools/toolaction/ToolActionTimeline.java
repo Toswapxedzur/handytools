@@ -40,10 +40,24 @@ final class ToolActionTimeline {
         };
     }
 
-    void requestRelease() {
-        if (phase != ToolActionPhase.RELEASE) {
-            releaseRequested = true;
+    /**
+     * Requests release. Before the overhead apex (PREPARATION or
+     * OPERATION_RAISE) this transitions straight to RELEASE so the action
+     * returns immediately from its current pose; during OPERATION_DESCEND it
+     * only flags release so the in-flight slam finishes (and fires impact)
+     * before RELEASE. Returns true when it changed the phase this call.
+     */
+    boolean requestRelease() {
+        if (phase == ToolActionPhase.RELEASE) {
+            return false;
         }
+        releaseRequested = true;
+        if (phase == ToolActionPhase.PREPARATION
+                || phase == ToolActionPhase.OPERATION_RAISE) {
+            transition(ToolActionPhase.RELEASE);
+            return true;
+        }
+        return false;
     }
 
     ToolActionPhase phase() {

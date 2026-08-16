@@ -32,6 +32,12 @@ public interface PhasedToolAction {
     default void onServerImpact(ToolActionContext context) {
     }
 
+    /**
+     * Terminal teardown hook, called once when the action ends for any reason:
+     * a normal release, an explicit cancel, an item swap, a dimension change,
+     * or the acting player's death. Use it to release any per-action state
+     * allocated in {@link #onServerPhaseStarted}.
+     */
     default void onServerActionFinished(ToolActionContext context) {
     }
 }
