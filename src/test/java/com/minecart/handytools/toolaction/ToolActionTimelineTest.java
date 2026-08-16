@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 
 final class ToolActionTimelineTest {
     private static final ToolActionDurations DURATIONS =
-            new ToolActionDurations(10, 14, 8, 10);
+            new ToolActionDurations(10, 14, 8, 8, 10);
 
     @Test
     void heldActionEntersAndRepeatsOperation() {
@@ -21,8 +21,11 @@ final class ToolActionTimelineTest {
         assertEquals(ToolActionPhase.OPERATION_DESCEND, timeline.phase());
 
         assertEquals(ToolActionTimeline.TickResult.IMPACT, tick(timeline, 8));
-        assertEquals(ToolActionPhase.OPERATION_RAISE, timeline.phase());
+        assertEquals(ToolActionPhase.OPERATION_DWELL, timeline.phase());   // holds after landing
         assertEquals(1, timeline.completedCycles());
+
+        tick(timeline, 8);
+        assertEquals(ToolActionPhase.OPERATION_RAISE, timeline.phase());   // then raises again
     }
 
     @Test
@@ -50,8 +53,11 @@ final class ToolActionTimelineTest {
         assertEquals(ToolActionPhase.OPERATION_DESCEND, timeline.phase());
 
         assertEquals(ToolActionTimeline.TickResult.IMPACT, tick(timeline, 5));  // slam still lands
-        assertEquals(ToolActionPhase.RELEASE, timeline.phase());
+        assertEquals(ToolActionPhase.OPERATION_DWELL, timeline.phase());        // holds first
         assertEquals(1, timeline.completedCycles());
+
+        tick(timeline, 8);
+        assertEquals(ToolActionPhase.RELEASE, timeline.phase());                // dwell done -> release
         assertEquals(ToolActionTimeline.TickResult.FINISHED, tick(timeline, 10));
     }
 

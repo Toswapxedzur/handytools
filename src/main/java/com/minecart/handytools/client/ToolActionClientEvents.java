@@ -88,6 +88,7 @@ public final class ToolActionClientEvents {
             case PREPARATION -> Mth.lerp(progress, 0.0F, CONTACT_PITCH);
             case OPERATION_RAISE -> Mth.lerp(progress, CONTACT_PITCH, OVERHEAD_PITCH);
             case OPERATION_DESCEND -> Mth.lerp(progress, OVERHEAD_PITCH, CONTACT_PITCH);
+            case OPERATION_DWELL -> CONTACT_PITCH;   // hold the down-look while pressing
             // Ease to level from wherever the view actually is (the smoother
             // carries it): a pre-apex release can enter from the reared-back
             // pitch, so a hardcoded CONTACT_PITCH start would dip it down first.
