@@ -1,5 +1,6 @@
 package com.minecart.handytools;
 
+import com.minecart.handytools.network.ToolActionNetworking;
 import com.minecart.handytools.toolaction.PhasedToolAction;
 import com.minecart.handytools.toolaction.ToolActionManager;
 import com.minecart.handytools.toolaction.ToolActionState;
@@ -23,10 +24,21 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 @EventBusSubscriber(modid = HandyTools.MOD_ID)
 public final class ToolActionGameplayEvents {
-    private static final Map<Player, LockedPlayerState> LOCKED_PLAYERS =
+    // Partitioned by logical side for the same reason as ToolActionManager:
+    // Entity#equals/#hashCode key on the entity id, so the singleplayer client
+    // and server players would otherwise share (and race) one lock record.
+    private static final Map<Player, LockedPlayerState> CLIENT_LOCKED_PLAYERS =
+            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Player, LockedPlayerState> SERVER_LOCKED_PLAYERS =
             Collections.synchronizedMap(new WeakHashMap<>());
 
     private ToolActionGameplayEvents() {
+    }
+
+    private static Map<Player, LockedPlayerState> lockedPlayers(Player player) {
+        return player.level().isClientSide
+                ? CLIENT_LOCKED_PLAYERS
+                : SERVER_LOCKED_PLAYERS;
     }
 
     @SubscribeEvent
@@ -113,8 +125,17 @@ public final class ToolActionGameplayEvents {
     public static void clearActionOnLogout(
             PlayerEvent.PlayerLoggedOutEvent event
     ) {
-        LOCKED_PLAYERS.remove(event.getEntity());
+        lockedPlayers(event.getEntity()).remove(event.getEntity());
         ToolActionManager.cancel(event.getEntity());
+    }
+
+    @SubscribeEvent
+    public static void clearActionOnRespawn(PlayerEvent.Clone event) {
+        // The pre-respawn player entity is discarded; drop its stale action and
+        // lock so a reused entity id cannot inherit them on the new player.
+        Player original = event.getOriginal();
+        lockedPlayers(original).remove(original);
+        ToolActionManager.cancel(original);
     }
 
     @SubscribeEvent
@@ -125,19 +146,31 @@ public final class ToolActionGameplayEvents {
         }
     }
 
+    @SubscribeEvent
+    public static void clearSyncedActionWhenTrackingStops(PlayerEvent.StopTracking event) {
+        // Tell the observer to forget the acting player so no stale phase
+        // snapshot lingers (its later inactive packet would never reach an
+        // observer that is no longer tracking it).
+        if (event.getEntity() instanceof ServerPlayer receivingPlayer
+                && event.getTarget() instanceof Player actingPlayer) {
+            ToolActionNetworking.sendInactiveTo(receivingPlayer, actingPlayer);
+        }
+    }
+
     private static void applyMovementLock(Player player) {
+        Map<Player, LockedPlayerState> lockedPlayers = lockedPlayers(player);
         if (!ToolActionManager.isActive(player)) {
-            LOCKED_PLAYERS.remove(player);
+            lockedPlayers.remove(player);
             return;
         }
 
-        LockedPlayerState state = LOCKED_PLAYERS.computeIfAbsent(
+        LockedPlayerState state = lockedPlayers.computeIfAbsent(
                 player,
                 LockedPlayerState::capture
         );
 
         if (!state.dimension().equals(player.level().dimension())) {
-            LOCKED_PLAYERS.put(player, LockedPlayerState.capture(player));
+            lockedPlayers.put(player, LockedPlayerState.capture(player));
             return;
         }
 
@@ -202,6 +235,7 @@ public final class ToolActionGameplayEvents {
         private final float startYRot;
         private final float targetYRot;
         private float lastYRot;
+        private float releaseFromYRot = Float.NaN;
 
         private BodyFacing(float startYRot, float targetYRot) {
             this.startYRot = startYRot;
@@ -228,11 +262,16 @@ public final class ToolActionGameplayEvents {
                         targetYRot
                 );
                 case OPERATION_RAISE, OPERATION_DESCEND -> targetYRot;
-                case RELEASE -> Mth.rotLerp(
-                        progress,
-                        targetYRot,
-                        startYRot
-                );
+                case RELEASE -> {
+                    // Ease back from the body's ACTUAL yaw when release began,
+                    // not from targetYRot: a pre-apex (hybrid) release can enter
+                    // RELEASE mid-turn, and anchoring at targetYRot would snap
+                    // the body to the block before easing back.
+                    if (Float.isNaN(releaseFromYRot)) {
+                        releaseFromYRot = lastYRot;
+                    }
+                    yield Mth.rotLerp(progress, releaseFromYRot, startYRot);
+                }
             };
         }
     }

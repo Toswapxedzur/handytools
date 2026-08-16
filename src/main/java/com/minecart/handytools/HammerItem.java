@@ -182,10 +182,18 @@ public final class HammerItem extends Item implements PhasedToolAction {
             InteractionHand hand,
             ToolActionTarget target
     ) {
-        if (!ToolActionManager.start(player, hand, this, target)) {
+        // Begin the vanilla item-use first: if another mod cancels the use
+        // (LivingEntityUseItemEvent.Start) the release callbacks would never
+        // fire, leaving a committed action to loop and lock the player forever.
+        player.startUsingItem(hand);
+        if (!player.isUsingItem() || player.getUsedItemHand() != hand) {
             return false;
         }
-        player.startUsingItem(hand);
+
+        if (!ToolActionManager.start(player, hand, this, target)) {
+            player.stopUsingItem();
+            return false;
+        }
         return true;
     }
 }
