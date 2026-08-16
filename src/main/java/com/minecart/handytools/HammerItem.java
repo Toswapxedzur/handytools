@@ -1,11 +1,17 @@
 package com.minecart.handytools;
 
 import com.minecart.handytools.toolaction.PhasedToolAction;
+import com.minecart.handytools.toolaction.ToolActionContext;
 import com.minecart.handytools.toolaction.ToolActionDurations;
 import com.minecart.handytools.toolaction.ToolActionManager;
 import com.minecart.handytools.toolaction.ToolActionTarget;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -36,8 +42,20 @@ public final class HammerItem extends Item implements PhasedToolAction {
     private static final double MAX_TARGET_DISTANCE_SQUARED =
             MAX_TARGET_DISTANCE * MAX_TARGET_DISTANCE;
     private static final double MIN_VIEW_DOT = 0.5D;
+    public static final int OPERATION_DESCEND_TICKS = 8;
+    public static final int OPERATION_DWELL_TICKS = 8; // ~0.4s hold at the bottom
     private static final ToolActionDurations ACTION_DURATIONS =
-            new ToolActionDurations(10, OPERATION_RAISE_TICKS, 8, 10);
+            new ToolActionDurations(
+                    10,
+                    OPERATION_RAISE_TICKS,
+                    OPERATION_DESCEND_TICKS,
+                    OPERATION_DWELL_TICKS,
+                    10
+            );
+
+    // Create's mechanical-press "bonk" when Create is installed; anvil-land otherwise.
+    private static final ResourceLocation CREATE_PRESS_SOUND =
+            ResourceLocation.fromNamespaceAndPath("create", "mechanical_press_activation");
 
     public HammerItem(Properties properties) {
         super(properties);
@@ -125,6 +143,28 @@ public final class HammerItem extends Item implements PhasedToolAction {
     @Override
     public ToolActionDurations actionDurations(ItemStack stack) {
         return ACTION_DURATIONS;
+    }
+
+    @Override
+    public void onServerImpact(ToolActionContext context) {
+        // Fires exactly when the slam reaches the block, before the dwell.
+        Level level = context.level();
+        Vec3 at = context.target().contactPoint();
+        level.playSound(
+                null,
+                at.x, at.y, at.z,
+                pressSound(),
+                SoundSource.BLOCKS,
+                0.9F,
+                0.95F + level.random.nextFloat() * 0.1F
+        );
+        // The block-crushing effect stays intentionally undefined behind this hook.
+    }
+
+    private static SoundEvent pressSound() {
+        return BuiltInRegistries.SOUND_EVENT
+                .getOptional(CREATE_PRESS_SOUND)
+                .orElse(SoundEvents.ANVIL_LAND);
     }
 
     @Override

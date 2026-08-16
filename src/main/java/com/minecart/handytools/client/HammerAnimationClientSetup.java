@@ -166,9 +166,14 @@ public final class HammerAnimationClientSetup {
         }
 
         private int animationElapsedTicks(ActionView action) {
-            return action.phase() == ToolActionPhase.OPERATION_DESCEND
-                    ? HammerItem.OPERATION_RAISE_TICKS + action.elapsedTicks()
-                    : action.elapsedTicks();
+            return switch (action.phase()) {
+                case OPERATION_DESCEND ->
+                        HammerItem.OPERATION_RAISE_TICKS + action.elapsedTicks();
+                case OPERATION_DWELL ->    // freeze on the landed contact frame
+                        HammerItem.OPERATION_RAISE_TICKS
+                                + HammerItem.OPERATION_DESCEND_TICKS;
+                default -> action.elapsedTicks();
+            };
         }
 
         private Optional<ActionView> actionView() {
@@ -203,14 +208,15 @@ public final class HammerAnimationClientSetup {
 
         private RawAnimation animationFor(ToolActionPhase phase) {
             ToolActionPhase animationPhase =
-                    phase == ToolActionPhase.OPERATION_DESCEND
+                    (phase == ToolActionPhase.OPERATION_DESCEND
+                            || phase == ToolActionPhase.OPERATION_DWELL)
                             ? ToolActionPhase.OPERATION_RAISE
                             : phase;
             ResourceLocation animationId = HandyTools.id(switch (animationPhase) {
                 case PREPARATION -> "hammer_preparation";
                 case OPERATION_RAISE -> "hammer_operation";
-                case OPERATION_DESCEND -> throw new IllegalStateException(
-                        "Descend must share the operation animation"
+                case OPERATION_DESCEND, OPERATION_DWELL -> throw new IllegalStateException(
+                        "Operation sub-phases must share the operation animation"
                 );
                 case RELEASE -> "hammer_release";
             });

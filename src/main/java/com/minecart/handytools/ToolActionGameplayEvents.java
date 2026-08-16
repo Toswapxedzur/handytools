@@ -261,7 +261,7 @@ public final class ToolActionGameplayEvents {
                         startYRot,
                         targetYRot
                 );
-                case OPERATION_RAISE, OPERATION_DESCEND -> targetYRot;
+                case OPERATION_RAISE, OPERATION_DESCEND, OPERATION_DWELL -> targetYRot;
                 case RELEASE -> {
                     // Ease back from the body's ACTUAL yaw when release began,
                     // not from targetYRot: a pre-apex (hybrid) release can enter

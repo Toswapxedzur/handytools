@@ -31,10 +31,14 @@ final class ToolActionTimeline {
             }
             case OPERATION_DESCEND -> {
                 completedCycles++;
+                transition(ToolActionPhase.OPERATION_DWELL);
+                yield TickResult.IMPACT;
+            }
+            case OPERATION_DWELL -> {
                 transition(releaseRequested
                         ? ToolActionPhase.RELEASE
                         : ToolActionPhase.OPERATION_RAISE);
-                yield TickResult.IMPACT;
+                yield TickResult.PHASE_CHANGED;
             }
             case RELEASE -> TickResult.FINISHED;
         };

@@ -5,12 +5,14 @@ public record ToolActionDurations(
         int preparationTicks,
         int raiseTicks,
         int descendTicks,
+        int dwellTicks,
         int releaseTicks
 ) {
     public ToolActionDurations {
         requirePositive("preparationTicks", preparationTicks);
         requirePositive("raiseTicks", raiseTicks);
         requirePositive("descendTicks", descendTicks);
+        requirePositive("dwellTicks", dwellTicks);
         requirePositive("releaseTicks", releaseTicks);
     }
 
@@ -19,6 +21,7 @@ public record ToolActionDurations(
             case PREPARATION -> preparationTicks;
             case OPERATION_RAISE -> raiseTicks;
             case OPERATION_DESCEND -> descendTicks;
+            case OPERATION_DWELL -> dwellTicks;
             case RELEASE -> releaseTicks;
         };
     }

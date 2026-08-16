@@ -14,9 +14,13 @@ public enum ToolActionPhase {
     PREPARATION,
     OPERATION_RAISE,
     OPERATION_DESCEND,
+    /** Holds the landed contact pose for a beat after impact, before raising again. */
+    OPERATION_DWELL,
     RELEASE;
 
     public boolean isOperation() {
-        return this == OPERATION_RAISE || this == OPERATION_DESCEND;
+        return this == OPERATION_RAISE
+                || this == OPERATION_DESCEND
+                || this == OPERATION_DWELL;
     }
 }
